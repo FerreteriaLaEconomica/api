@@ -1,0 +1,5 @@
+profile: base
+defaultPackage: api
+---
+testFramework: junit
+sourceLanguage: java
