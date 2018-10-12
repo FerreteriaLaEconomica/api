@@ -2,6 +2,7 @@ package api.users;
 
 import api.ApiError;
 import api.Constants;
+import api.data.UsersRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTCreator;
 import com.auth0.jwt.JWTVerifier;
@@ -17,14 +18,10 @@ import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.Post;
 import io.reactivex.Flowable;
-import org.davidmoten.rx.jdbc.Database;
 import org.mindrot.jbcrypt.BCrypt;
 
 import javax.inject.Inject;
 import java.text.DateFormat;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -35,7 +32,7 @@ import static io.micronaut.http.HttpResponse.*;
  */
 @Controller("/users")
 public class UserController {
-    @Inject Database db;
+    @Inject UsersRepository usersRepo;
     @Inject JWTCreator.Builder jwtSigner;
     @Inject Algorithm jwtAlgorithm;
     @Inject JWTVerifier jwtVerifier;
@@ -56,22 +53,9 @@ public class UserController {
         }
         Claim emailClaim = jwt.getClaim("email");
         if (!emailClaim.isNull()) {
-            UsuarioResponse user = db.select("SELECT * FROM usuario WHERE email = ?")
-                    .parameters(emailClaim.asString())
-                    .get(rs -> {
-                        String email = emailClaim.asString();
-                        int id = rs.getInt("id");
-                        String nombre = rs.getString("nombre");
-                        String apellidos = rs.getString("apellidos");
-                        String urlFoto = rs.getString("url_foto");
-                        String telefono = rs.getString("telefono");
-
-                        return db.select("SELECT r.nombre FROM role r, usuario u, user_role ur WHERE u.id = ? AND u.id = ur.id_usuario AND r.id = ur.id_role")
-                                .parameters(id).get(rs1 -> rs1.getString("nombre"))
-                                .toList()
-                                .map(roles -> new UsuarioResponse(email, getToken(email, roles), nombre, apellidos, urlFoto, telefono, roles))
-                                .blockingGet();
-                    }).blockingFirst(null);
+            UsuarioResponse user = usersRepo.getUserByEmail(emailClaim.asString())
+                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.roles), u.nombre, u.apellidos, u.url_foto, u.telefono, u.roles))
+                    .blockingFirst(null);
             if (user == null) {
                 return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
             }
@@ -91,30 +75,18 @@ public class UserController {
         }
         String email = body.get("email").asText();
         String password = body.get("password").asText();
-        boolean userExists = db.select("SELECT * FROM usuario WHERE email = ?")
-                .parameters(email)
-                .get(rs -> {
-                    String hashedPasswd = rs.getString("password");
+
+        boolean userExists = usersRepo.getUserByEmail(email)
+                .map(u -> {
+                    String hashedPasswd = u.password;
                     return BCrypt.checkpw(password, hashedPasswd);
-                })
-                .blockingFirst(false);
+                }).blockingFirst(false);
         if (!userExists) {
             return ApiError.of(notFound(), "El usuario con el correo: '" + email + "' NO existe ó la contraseña es incorrecta.");
         } else {
-            return db.select("SELECT * FROM usuario WHERE email = ?")
-                .parameters(email)
-                .get(rs -> {
-                    List<String> roles = db.select("SELECT r.nombre FROM role r, usuario u, user_role ur WHERE u.id = ? AND u.id = ur.id_usuario AND r.id = ur.id_role")
-                            .parameters(rs.getInt("id"))
-                            .get(rs1 -> rs1.getString("nombre"))
-                            .toList().blockingGet();
-                    String nombre = rs.getString("nombre");
-                    String apellidos = rs.getString("apellidos");
-                    String urlFoto = rs.getString("url_foto");
-                    String telefono = rs.getString("telefono");
-
-                    return new UsuarioResponse(email, getToken(email, roles), nombre, apellidos, urlFoto, telefono, roles);
-                }).map(HttpResponse::ok);
+            return usersRepo.getUserByEmail(email)
+                    .map(u -> new UsuarioResponse(email, getToken(email, u.roles), u.nombre, u.apellidos, u.url_foto, u.telefono, u.roles))
+                    .map(HttpResponse::ok);
         }
     }
 
@@ -127,9 +99,8 @@ public class UserController {
             return ApiError.of(unprocessableEntity(), "Faltan este(os) campo(s) para proceder: " + fields + ".");
         }
         String email = body.get("email").asText();
-        Integer a =db.select("SELECT COUNT(*) FROM usuario WHERE email = '" + email + "'")
-            .get(rs -> rs.getInt("count")).blockingFirst();
-        if (a > 0) {
+        boolean existsUser = usersRepo.existsUserWithEmail(email).blockingFirst(true);
+        if (existsUser) {
             return ApiError.of(badRequest(), "Ya existe un usuario con el correo: '" + email + "'");
         } else {
             String nombre = body.get("nombre").asText();
@@ -143,11 +114,8 @@ public class UserController {
             if (body.get("telefono") != null) {
                 telefono = body.get("telefono").asText();
             }
-            int result = db.update("INSERT INTO usuario (nombre, apellidos, email, password, url_foto, telefono) " +
-                    "VALUES (?, ?, ?, ?, ?, ?) RETURNING *")
-                .parameters(nombre, apellidos, email, password, url_foto, telefono)
-                .returnGeneratedKeys().get(rs -> rs.getInt("id"))
-                .blockingSingle();
+            usersRepo.saveUser(nombre, apellidos, email, password, url_foto, telefono)
+                    .blockingSingle();
 
             UsuarioResponse user = new UsuarioResponse(email, getToken(email, Arrays.asList()), nombre, apellidos, url_foto, telefono);
             return Flowable.just(ok(user));
