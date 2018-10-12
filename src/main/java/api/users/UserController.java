@@ -13,10 +13,7 @@ import com.auth0.jwt.interfaces.DecodedJWT;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
-import io.micronaut.http.annotation.Body;
-import io.micronaut.http.annotation.Controller;
-import io.micronaut.http.annotation.Get;
-import io.micronaut.http.annotation.Post;
+import io.micronaut.http.annotation.*;
 import io.reactivex.Flowable;
 import org.mindrot.jbcrypt.BCrypt;
 
@@ -38,7 +35,7 @@ public class UserController {
     @Inject JWTVerifier jwtVerifier;
 
     @Get("/me")
-    public Flowable<HttpResponse> currentUser(HttpRequest request/* @Header("Authorization") String authorization*/) {
+    public Flowable<HttpResponse> currentUser(HttpRequest request) {
         Optional<String> authorization = request.getHeaders().getAuthorization();
         if (!authorization.isPresent()) {
             return ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token");
@@ -122,6 +119,51 @@ public class UserController {
         }
     }
 
+    @Put
+    public Flowable<HttpResponse> actualizarUsuario(HttpRequest request, @Body ObjectNode body) {
+        Optional<String> authorization = request.getHeaders().getAuthorization();
+        if (!authorization.isPresent()) {
+            return ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token");
+        }
+        String token = authorization.get().substring(7);
+        DecodedJWT jwt;
+        try {
+            jwt = jwtVerifier.verify(token);
+        } catch (TokenExpiredException e) {
+            Date date = JWT.decode(token).getExpiresAt();
+            return ApiError.of(unauthorized(), "El token expiró. Fecha de expiración: " + DateFormat.getDateTimeInstance().format(date));
+        }
+        Claim emailClaim = jwt.getClaim("email");
+        if (!emailClaim.isNull()) {
+            boolean existsUser = usersRepo.existsUserWithEmail(emailClaim.asString())
+                    .blockingFirst(true);
+            if (!existsUser) {
+                return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
+            }
+            String nombre = null;
+            if (body.get("nombre") != null) {
+                nombre = body.get("nombre").asText();
+            }
+            String apellidos = null;
+            if (body.get("apellidos") != null) {
+                apellidos = body.get("apellidos").asText();
+            }
+            String urlFoto = null;
+            if (body.get("url_foto") != null) {
+                urlFoto = body.get("url_foto").asText();
+            }
+            String telefono = null;
+            if (body.get("telefono") != null) {
+                telefono = body.get("telefono").asText();
+            }
+            return usersRepo.updateUserData(emailClaim.asString(), nombre, apellidos, urlFoto, telefono)
+                    .map(HttpResponse::ok);
+        } else {
+            return ApiError.of(unauthorized(), "El token es inválido.");
+        }
+
+    }
+
     private String hashPassword(String password) {
         return BCrypt.hashpw(password, BCrypt.gensalt(5));
     }
@@ -134,29 +176,5 @@ public class UserController {
                 .withIssuedAt(new Date())
                 .withExpiresAt(new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24)))
                 .sign(jwtAlgorithm);
-    }
-
-    static class UsuarioResponse {
-        public final String email;
-        public final String token;
-        public final String nombre;
-        public final String apellidos;
-        public final String url_foto;
-        public final String telefono;
-        public final List<String> roles;
-
-        public UsuarioResponse(String email, String token, String nombre, String apellidos, String url_foto, String telefono) {
-            this(email, token, nombre, apellidos, url_foto, telefono, Arrays.asList());
-        }
-
-        public UsuarioResponse(String email, String token, String nombre, String apellidos, String url_foto, String telefono, List<String> roles) {
-            this.email = email;
-            this.token = token;
-            this.nombre = nombre;
-            this.apellidos = apellidos;
-            this.url_foto = url_foto;
-            this.telefono = telefono;
-            this.roles = roles;
-        }
     }
 }

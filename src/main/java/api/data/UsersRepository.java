@@ -1,9 +1,7 @@
 package api.data;
 
-import io.reactivex.*;
-import io.reactivex.functions.Function;
+import io.reactivex.Flowable;
 import org.davidmoten.rx.jdbc.Database;
-import org.reactivestreams.Publisher;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -19,6 +17,34 @@ public class UsersRepository {
     @Inject
     public UsersRepository(Database db) {
         this.db = db;
+    }
+
+    public Flowable<UserEntity> updateUserData(String email, String nombre, String apellidos, String urlFoto, String telefono) {
+        Flowable<String> result = null;
+        if (nombre != null) {
+            result = updateUserData(email, "nombre", nombre);
+        }
+        if (apellidos != null) {
+            if (result == null) result = updateUserData(email, "apellidos", apellidos);
+            else result = result.flatMap(upstream -> updateUserData(email, "apellidos", apellidos));
+        }
+        if (urlFoto != null) {
+            if (result == null) result = updateUserData(email, "url_foto", urlFoto);
+            else result = result.flatMap(upstream -> updateUserData(email, "url_foto", urlFoto));
+        }
+        if (telefono != null) {
+            if (result == null) result = updateUserData(email, "telefono", telefono);
+            else result = result.flatMap(upstream -> updateUserData(email, "telefono", telefono));
+        }
+        if (result == null) return getUserByEmail(email);
+        return result.flatMap(this::getUserByEmail);
+    }
+
+    private Flowable<String> updateUserData(String email, String fieldName, String value) {
+        String query = "UPDATE usuario SET " + fieldName + " = '" + value + "' " +
+                "WHERE email = '" + email + "'";
+        return db.update(query).returnGeneratedKeys()
+                .get(rs -> rs.getString("email"));
     }
 
     public Flowable<UserEntity> getUserByEmail(String email) {
