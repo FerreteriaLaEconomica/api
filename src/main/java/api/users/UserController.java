@@ -2,6 +2,7 @@ package api.users;
 
 import api.ApiError;
 import api.Constants;
+import api.data.UsersRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTCreator;
 import com.auth0.jwt.JWTVerifier;
@@ -9,22 +10,18 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.TokenExpiredException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
-import io.micronaut.http.annotation.Body;
-import io.micronaut.http.annotation.Controller;
-import io.micronaut.http.annotation.Get;
-import io.micronaut.http.annotation.Post;
+import io.micronaut.http.HttpResponseFactory;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.annotation.*;
 import io.reactivex.Flowable;
-import org.davidmoten.rx.jdbc.Database;
 import org.mindrot.jbcrypt.BCrypt;
 
 import javax.inject.Inject;
 import java.text.DateFormat;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -35,13 +32,13 @@ import static io.micronaut.http.HttpResponse.*;
  */
 @Controller("/users")
 public class UserController {
-    @Inject Database db;
+    @Inject UsersRepository usersRepo;
     @Inject JWTCreator.Builder jwtSigner;
     @Inject Algorithm jwtAlgorithm;
     @Inject JWTVerifier jwtVerifier;
 
     @Get("/me")
-    public Flowable<HttpResponse> currentUser(HttpRequest request/* @Header("Authorization") String authorization*/) {
+    public Flowable<HttpResponse> currentUser(HttpRequest request) {
         Optional<String> authorization = request.getHeaders().getAuthorization();
         if (!authorization.isPresent()) {
             return ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token");
@@ -56,22 +53,9 @@ public class UserController {
         }
         Claim emailClaim = jwt.getClaim("email");
         if (!emailClaim.isNull()) {
-            UsuarioResponse user = db.select("SELECT * FROM usuario WHERE email = ?")
-                    .parameters(emailClaim.asString())
-                    .get(rs -> {
-                        String email = emailClaim.asString();
-                        int id = rs.getInt("id");
-                        String nombre = rs.getString("nombre");
-                        String apellidos = rs.getString("apellidos");
-                        String urlFoto = rs.getString("url_foto");
-                        String telefono = rs.getString("telefono");
-
-                        return db.select("SELECT r.nombre FROM role r, usuario u, user_role ur WHERE u.id = ? AND u.id = ur.id_usuario AND r.id = ur.id_role")
-                                .parameters(id).get(rs1 -> rs1.getString("nombre"))
-                                .toList()
-                                .map(roles -> new UsuarioResponse(email, getToken(email, roles), nombre, apellidos, urlFoto, telefono, roles))
-                                .blockingGet();
-                    }).blockingFirst(null);
+            UsuarioResponse user = usersRepo.getUserByEmail(emailClaim.asString())
+                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.roles), u.nombre, u.apellidos, u.url_foto, u.telefono, u.roles))
+                    .blockingFirst(null);
             if (user == null) {
                 return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
             }
@@ -91,30 +75,18 @@ public class UserController {
         }
         String email = body.get("email").asText();
         String password = body.get("password").asText();
-        boolean userExists = db.select("SELECT * FROM usuario WHERE email = ?")
-                .parameters(email)
-                .get(rs -> {
-                    String hashedPasswd = rs.getString("password");
+
+        boolean userExists = usersRepo.getUserByEmail(email)
+                .map(u -> {
+                    String hashedPasswd = u.password;
                     return BCrypt.checkpw(password, hashedPasswd);
-                })
-                .blockingFirst(false);
+                }).blockingFirst(false);
         if (!userExists) {
             return ApiError.of(notFound(), "El usuario con el correo: '" + email + "' NO existe ó la contraseña es incorrecta.");
         } else {
-            return db.select("SELECT * FROM usuario WHERE email = ?")
-                .parameters(email)
-                .get(rs -> {
-                    List<String> roles = db.select("SELECT r.nombre FROM role r, usuario u, user_role ur WHERE u.id = ? AND u.id = ur.id_usuario AND r.id = ur.id_role")
-                            .parameters(rs.getInt("id"))
-                            .get(rs1 -> rs1.getString("nombre"))
-                            .toList().blockingGet();
-                    String nombre = rs.getString("nombre");
-                    String apellidos = rs.getString("apellidos");
-                    String urlFoto = rs.getString("url_foto");
-                    String telefono = rs.getString("telefono");
-
-                    return new UsuarioResponse(email, getToken(email, roles), nombre, apellidos, urlFoto, telefono, roles);
-                }).map(HttpResponse::ok);
+            return usersRepo.getUserByEmail(email)
+                    .map(u -> new UsuarioResponse(email, getToken(email, u.roles), u.nombre, u.apellidos, u.url_foto, u.telefono, u.roles))
+                    .map(HttpResponse::ok);
         }
     }
 
@@ -127,9 +99,8 @@ public class UserController {
             return ApiError.of(unprocessableEntity(), "Faltan este(os) campo(s) para proceder: " + fields + ".");
         }
         String email = body.get("email").asText();
-        Integer a =db.select("SELECT COUNT(*) FROM usuario WHERE email = '" + email + "'")
-            .get(rs -> rs.getInt("count")).blockingFirst();
-        if (a > 0) {
+        boolean existsUser = usersRepo.existsUserWithEmail(email).blockingFirst(true);
+        if (existsUser) {
             return ApiError.of(badRequest(), "Ya existe un usuario con el correo: '" + email + "'");
         } else {
             String nombre = body.get("nombre").asText();
@@ -143,14 +114,108 @@ public class UserController {
             if (body.get("telefono") != null) {
                 telefono = body.get("telefono").asText();
             }
-            int result = db.update("INSERT INTO usuario (nombre, apellidos, email, password, url_foto, telefono) " +
-                    "VALUES (?, ?, ?, ?, ?, ?) RETURNING *")
-                .parameters(nombre, apellidos, email, password, url_foto, telefono)
-                .returnGeneratedKeys().get(rs -> rs.getInt("id"))
-                .blockingSingle();
+            usersRepo.saveUser(nombre, apellidos, email, password, url_foto, telefono)
+                    .blockingSingle();
 
             UsuarioResponse user = new UsuarioResponse(email, getToken(email, Arrays.asList()), nombre, apellidos, url_foto, telefono);
             return Flowable.just(ok(user));
+        }
+    }
+
+    @Put
+    public Flowable<HttpResponse> actualizarUsuario(HttpRequest request, @Body ObjectNode body) {
+        Optional<String> authorization = request.getHeaders().getAuthorization();
+        if (!authorization.isPresent()) {
+            return ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token");
+        }
+        String token = authorization.get().substring(7);
+        DecodedJWT jwt;
+        try {
+            jwt = jwtVerifier.verify(token);
+        } catch (TokenExpiredException e) {
+            Date date = JWT.decode(token).getExpiresAt();
+            return ApiError.of(unauthorized(), "El token expiró. Fecha de expiración: " + DateFormat.getDateTimeInstance().format(date));
+        }
+        Claim emailClaim = jwt.getClaim("email");
+        if (!emailClaim.isNull()) {
+            boolean existsUser = usersRepo.existsUserWithEmail(emailClaim.asString())
+                    .blockingFirst(true);
+            if (!existsUser) {
+                return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
+            }
+            String nombre = null;
+            if (body.get("nombre") != null) {
+                nombre = body.get("nombre").asText();
+            }
+            String apellidos = null;
+            if (body.get("apellidos") != null) {
+                apellidos = body.get("apellidos").asText();
+            }
+            String urlFoto = null;
+            if (body.get("url_foto") != null) {
+                urlFoto = body.get("url_foto").asText();
+            }
+            String telefono = null;
+            if (body.get("telefono") != null) {
+                telefono = body.get("telefono").asText();
+            }
+            return usersRepo.updateUserData(emailClaim.asString(), nombre, apellidos, urlFoto, telefono)
+                    .map(HttpResponse::ok);
+        } else {
+            return ApiError.of(unauthorized(), "El token es inválido.");
+        }
+    }
+
+    @Put("/roles")
+    public Flowable<HttpResponse> agregarRolesUsuario(HttpRequest request, @Body ObjectNode body) {
+        Optional<String> authorization = request.getHeaders().getAuthorization();
+        if (!authorization.isPresent()) {
+            return ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token");
+        }
+        String token = authorization.get().substring(7);
+        DecodedJWT jwt;
+        try {
+            jwt = jwtVerifier.verify(token);
+        } catch (TokenExpiredException e) {
+            Date date = JWT.decode(token).getExpiresAt();
+            return ApiError.of(unauthorized(), "El token expiró. Fecha de expiración: " + DateFormat.getDateTimeInstance().format(date));
+        }
+        Claim emailClaim = jwt.getClaim("email");
+        if (!emailClaim.isNull()) {
+            boolean existsUser = usersRepo.existsUserWithEmail(emailClaim.asString())
+                    .blockingFirst(true);
+            if (!existsUser) {
+                return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
+            }
+            Claim rolesClaim = jwt.getHeaderClaim("roles");
+            if (rolesClaim.isNull()) {
+                return ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
+                        "El usuario '" + emailClaim.asString() + "' NO cuenta con los permisos necesarios");
+            } else {
+                List<String> userRoles = rolesClaim.asList(String.class);
+                if (userRoles.contains("SUPER_ADMIN")) {
+                    List<String> requiredFields = Arrays.asList("email", "roles");
+                    String fields = requiredFields.stream().filter(required -> body.get(required) == null)
+                            .collect(Collectors.joining(", "));
+                    if (!fields.equals("")) {
+                        return ApiError.of(unprocessableEntity(), "Faltan este(os) campo(s) para proceder: " + fields + ".");
+                    }
+
+                    String userEmail = body.get("email").asText();
+                    List<String> roles = new ArrayList<>();
+                    Iterator<JsonNode> iterator = body.get("roles").elements();
+                    while (iterator.hasNext()) {
+                        roles.add(iterator.next().asText());
+                    }
+                    return usersRepo.addRoles(userEmail, roles)
+                            .map(HttpResponse::ok);
+                } else {
+                    return ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
+                            "El usuario '" + emailClaim.asString() + "' NO cuenta con los permisos necesarios");
+                }
+            }
+        } else {
+            return ApiError.of(unauthorized(), "El token es inválido.");
         }
     }
 
@@ -162,33 +227,10 @@ public class UserController {
         Map<String, Object> headerClaims = new HashMap<>();
         headerClaims.put("email", email);
         headerClaims.put("roles", roles);
-        return jwtSigner.withClaim("email", email)
+        return jwtSigner.withHeader(headerClaims)
+                .withClaim("email", email)
                 .withIssuedAt(new Date())
                 .withExpiresAt(new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24)))
                 .sign(jwtAlgorithm);
-    }
-
-    static class UsuarioResponse {
-        public final String email;
-        public final String token;
-        public final String nombre;
-        public final String apellidos;
-        public final String url_foto;
-        public final String telefono;
-        public final List<String> roles;
-
-        public UsuarioResponse(String email, String token, String nombre, String apellidos, String url_foto, String telefono) {
-            this(email, token, nombre, apellidos, url_foto, telefono, Arrays.asList());
-        }
-
-        public UsuarioResponse(String email, String token, String nombre, String apellidos, String url_foto, String telefono, List<String> roles) {
-            this.email = email;
-            this.token = token;
-            this.nombre = nombre;
-            this.apellidos = apellidos;
-            this.url_foto = url_foto;
-            this.telefono = telefono;
-            this.roles = roles;
-        }
     }
 }
