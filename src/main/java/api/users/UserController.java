@@ -2,7 +2,7 @@ package api.users;
 
 import api.ApiError;
 import api.Constants;
-import api.data.UsersRepository;
+import api.data.users.UsersRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTCreator;
 import com.auth0.jwt.JWTVerifier;
