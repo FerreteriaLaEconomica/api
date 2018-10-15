@@ -19,6 +19,29 @@ public class UsersRepository {
         this.db = db;
     }
 
+    public Flowable<UserEntity> addRoles(String email, List<String> roles) {
+        String getUserQuery = "SELECT id FROM usuario WHERE email = ?";
+        Flowable<Integer> getUserId = db.select(getUserQuery).parameters(email)
+                .get(rs -> rs.getInt("id"));
+
+        return Flowable.fromIterable(roles)
+                .flatMap(this::existsRole)
+                .filter(roleId -> roleId != -1)
+                .filter(roleId -> !existsUserWithRole(email, roleId).blockingLast())
+                .flatMap(roleId -> {
+                    int userId = getUserId.blockingLast();
+                    String addUserRoleQuery = "INSERT INTO user_role(id_usuario, id_role) VALUES(?, ?) RETURNING *";
+                    return db.select(addUserRoleQuery)
+                            .parameters(userId, roleId)
+                            .get(rs -> rs.getInt("id_usuario") + " - " + rs.getInt("id_role"));
+                })
+                .toList().toFlowable()
+                .flatMap(userRoleIds -> {
+                    System.out.println(userRoleIds.size() + " roles added to: " + email);
+                    return getUserByEmail(email);
+                });
+    }
+
     public Flowable<UserEntity> updateUserData(String email, String nombre, String apellidos, String urlFoto, String telefono) {
         Flowable<String> result = null;
         if (nombre != null) {
@@ -70,7 +93,34 @@ public class UsersRepository {
 
     public Flowable<Boolean> existsUserWithEmail(String email) {
         return db.select("SELECT COUNT(*) FROM usuario WHERE email = '" + email + "'")
-                .get(rs -> rs.getInt("count") == 1);
+                .get(rs -> rs.getInt("count") == 1)
+                .onErrorReturn(throwable -> true);
+    }
+
+    public Flowable<Boolean> existsUserWithRole(String userEmail, int roleNameId) {
+        String getUserQuery = "SELECT id FROM usuario WHERE email = ?";
+        Flowable<Integer> getUserId = db.select(getUserQuery).parameters(userEmail)
+                .get(rs -> rs.getInt("id"));
+        return existsRole(roleNameId)
+                .filter(roleId -> roleId != -1)
+                .zipWith(getUserId, (roleId, userId) -> {
+                    String query = "select count(*) from user_role where id_role = ? and id_usuario = ?";
+                    return db.select(query).parameters(roleId, userId);
+                })
+                .flatMap(selectBuilder -> selectBuilder.get(rs -> rs.getInt("count") != 0))
+                .onErrorReturn(throwable -> true);
+    }
+
+    public Flowable<Integer> existsRole(int id) {
+        return db.select("SELECT id FROM role WHERE id = '" + id + "'")
+                .get(rs -> rs.getInt("id"))
+                .onErrorReturn(throwable -> -1);
+    }
+
+    public Flowable<Integer> existsRole(String name) {
+        return db.select("SELECT id FROM role WHERE nombre = '" + name + "'")
+                .get(rs -> rs.getInt("id"))
+                .onErrorReturn(throwable -> -1);
     }
 
     public Flowable<Integer> saveUser(String nombre, String apellidos, String email, String password, String url_foto, String telefono) {

@@ -10,9 +10,12 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.TokenExpiredException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpResponseFactory;
+import io.micronaut.http.HttpStatus;
 import io.micronaut.http.annotation.*;
 import io.reactivex.Flowable;
 import org.mindrot.jbcrypt.BCrypt;
@@ -161,7 +164,59 @@ public class UserController {
         } else {
             return ApiError.of(unauthorized(), "El token es inválido.");
         }
+    }
 
+    @Put("/roles")
+    public Flowable<HttpResponse> agregarRolesUsuario(HttpRequest request, @Body ObjectNode body) {
+        Optional<String> authorization = request.getHeaders().getAuthorization();
+        if (!authorization.isPresent()) {
+            return ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token");
+        }
+        String token = authorization.get().substring(7);
+        DecodedJWT jwt;
+        try {
+            jwt = jwtVerifier.verify(token);
+        } catch (TokenExpiredException e) {
+            Date date = JWT.decode(token).getExpiresAt();
+            return ApiError.of(unauthorized(), "El token expiró. Fecha de expiración: " + DateFormat.getDateTimeInstance().format(date));
+        }
+        Claim emailClaim = jwt.getClaim("email");
+        if (!emailClaim.isNull()) {
+            boolean existsUser = usersRepo.existsUserWithEmail(emailClaim.asString())
+                    .blockingFirst(true);
+            if (!existsUser) {
+                return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
+            }
+            Claim rolesClaim = jwt.getHeaderClaim("roles");
+            if (rolesClaim.isNull()) {
+                return ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
+                        "El usuario '" + emailClaim.asString() + "' NO cuenta con los permisos necesarios");
+            } else {
+                List<String> userRoles = rolesClaim.asList(String.class);
+                if (userRoles.contains("SUPER_ADMIN")) {
+                    List<String> requiredFields = Arrays.asList("email", "roles");
+                    String fields = requiredFields.stream().filter(required -> body.get(required) == null)
+                            .collect(Collectors.joining(", "));
+                    if (!fields.equals("")) {
+                        return ApiError.of(unprocessableEntity(), "Faltan este(os) campo(s) para proceder: " + fields + ".");
+                    }
+
+                    String userEmail = body.get("email").asText();
+                    List<String> roles = new ArrayList<>();
+                    Iterator<JsonNode> iterator = body.get("roles").elements();
+                    while (iterator.hasNext()) {
+                        roles.add(iterator.next().asText());
+                    }
+                    return usersRepo.addRoles(userEmail, roles)
+                            .map(HttpResponse::ok);
+                } else {
+                    return ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
+                            "El usuario '" + emailClaim.asString() + "' NO cuenta con los permisos necesarios");
+                }
+            }
+        } else {
+            return ApiError.of(unauthorized(), "El token es inválido.");
+        }
     }
 
     private String hashPassword(String password) {
@@ -172,7 +227,8 @@ public class UserController {
         Map<String, Object> headerClaims = new HashMap<>();
         headerClaims.put("email", email);
         headerClaims.put("roles", roles);
-        return jwtSigner.withClaim("email", email)
+        return jwtSigner.withHeader(headerClaims)
+                .withClaim("email", email)
                 .withIssuedAt(new Date())
                 .withExpiresAt(new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24)))
                 .sign(jwtAlgorithm);
