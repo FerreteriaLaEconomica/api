@@ -230,7 +230,7 @@ public class UserController {
         return jwtSigner.withHeader(headerClaims)
                 .withClaim("email", email)
                 .withIssuedAt(new Date())
-                .withExpiresAt(new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24)))
+                .withExpiresAt(new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24 * 3)))
                 .sign(jwtAlgorithm);
     }
 }
