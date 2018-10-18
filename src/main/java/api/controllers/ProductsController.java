@@ -1,5 +1,7 @@
-package api;
+package api.controllers;
 
+import api.ApiError;
+import api.Authenticator;
 import api.data.categories.CategoriesRepository;
 import api.data.categories.CategoryEntity;
 import api.data.products.ProductEntity;

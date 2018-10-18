@@ -1,4 +1,4 @@
-package api.users;
+package api.controllers.users;
 
 import java.util.Arrays;
 import java.util.List;

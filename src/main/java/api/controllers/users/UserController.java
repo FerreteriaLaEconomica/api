@@ -1,4 +1,4 @@
-package api.users;
+package api.controllers.users;
 
 import api.ApiError;
 import api.Constants;
