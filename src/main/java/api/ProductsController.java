@@ -97,7 +97,7 @@ public class ProductsController {
         if (!fields.equals("")) {
             return ApiError.of(unprocessableEntity(), "Faltan este(os) campo(s) para proceder: " + fields + ".");
         }
-        ProductEntity oldProduct = productsRepo.getProductById(oldId).blockingLast();
+        ProductEntity oldProduct = productsRepo.getProductById(oldId).blockingFirst();
         if (oldProduct instanceof ProductEntity.NoProduct)
             return ApiError.of(notFound(), "Producto con id '" + id + "' no encontrado");
 
@@ -112,5 +112,26 @@ public class ProductsController {
             return ApiError.of(HttpResponse.notFound(), "Categoría '" + categoria + "' no encontrada");
         return productsRepo.updateProduct(oldProduct, codigoBarras, nombre, descripcion, urlFoto, formato, categoria)
                 .map(HttpResponse::ok);
+    }
+
+    @Delete("/{id}")
+    public Flowable<HttpResponse> deleteProduct(HttpRequest request, String id) {
+        int oldId;
+        try {
+            oldId = Integer.valueOf(id);
+        } catch (NumberFormatException e) {
+            return ApiError.of(HttpResponse.notFound(), "Producto con id '" + id + "' no encontrado");
+        }
+        Optional<Flowable<HttpResponse>> authError = auth.authenticate(request, "SUPER_ADMIN");
+        if (authError.isPresent()) return authError.get();
+
+        return productsRepo.getProductById(oldId)
+                .first(new ProductEntity.NoProduct())
+                .toFlowable()
+                .flatMap(productEntity -> {
+                    if (productEntity instanceof ProductEntity.NoProduct)
+                        return ApiError.of(HttpResponse.notFound(), "Producto con id '" + id + "' no encontrado");
+                    return Flowable.just(HttpResponse.ok(productsRepo.deleteProductById(oldId)));
+                });
     }
 }

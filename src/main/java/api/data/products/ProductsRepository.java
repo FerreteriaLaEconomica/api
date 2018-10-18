@@ -112,8 +112,7 @@ public class ProductsRepository {
                     String query = "INSERT INTO categoria_producto(id_categoria, id_producto) VALUES(?, ?) RETURNING *";
                     return db.select(query)
                             .parameters(categoryEntity.id, productId)
-                            .get(rs -> rs.getInt("id_producto")
-                            );
+                            .get(rs -> rs.getInt("id_producto"));
                 });
     }
 
@@ -124,7 +123,7 @@ public class ProductsRepository {
             db.select(deleteRow)
                     .parameters(oldProduct.id, categoryEntity.id)
                     .get(rs -> "").blockingLast();
-            addProductToCategory(oldProduct.id, category);
+            addProductToCategory(oldProduct.id, category).blockingFirst();
         }
         String updateQuery = "UPDATE producto SET (codigo_barras, nombre, descripcion, url_foto, formato) " +
                 "= (?, ?, ?, ?, '" + formato + "') WHERE id = ? RETURNING *";
@@ -134,5 +133,12 @@ public class ProductsRepository {
                     int id = rs.getInt("id");
                     return new ProductEntity(id, codigoBarras, nombre, descripcion, urlFoto, formato, category);
                 });
+    }
+
+    public Flowable<Integer> deleteProductById(int id) {
+        String deleteRow = "DELETE FROM producto WHERE id = ? RETURNING *";
+        return db.select(deleteRow)
+                .parameters(id)
+                .get(rs -> rs.getInt("id"));
     }
 }
