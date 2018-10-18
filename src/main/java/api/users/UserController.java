@@ -2,7 +2,7 @@ package api.users;
 
 import api.ApiError;
 import api.Constants;
-import api.data.UsersRepository;
+import api.data.users.UsersRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTCreator;
 import com.auth0.jwt.JWTVerifier;
@@ -230,7 +230,7 @@ public class UserController {
         return jwtSigner.withHeader(headerClaims)
                 .withClaim("email", email)
                 .withIssuedAt(new Date())
-                .withExpiresAt(new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24)))
+                .withExpiresAt(new Date(System.currentTimeMillis() + (1000L * 60 * 60 * 24 * 3)))
                 .sign(jwtAlgorithm);
     }
 }

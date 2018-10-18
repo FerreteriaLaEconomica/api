@@ -1,4 +1,4 @@
-package api.data;
+package api.data.users;
 
 import io.reactivex.Flowable;
 import org.davidmoten.rx.jdbc.Database;
