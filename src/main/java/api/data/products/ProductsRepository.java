@@ -1,6 +1,7 @@
 package api.data.products;
 
 import api.data.categories.CategoriesRepository;
+import api.data.categories.CategoryEntity;
 import io.reactivex.Flowable;
 import org.davidmoten.rx.jdbc.Database;
 
@@ -88,7 +89,7 @@ public class ProductsRepository {
                 .returnGeneratedKeys()
                 .get(rs -> {
                     int id = rs.getInt("id");
-                    return new ProductEntity(id, codigoBarras, nombre, descripcion, urlFoto, formato);
+                    return new ProductEntity(id, codigoBarras, nombre, descripcion, urlFoto, formato, categoria);
                 })
                 .flatMap(productEntity -> addProductToCategory(productEntity, categoria));
     }
@@ -102,6 +103,36 @@ public class ProductsRepository {
                             .get(rs -> new ProductEntity(productEntity.id, productEntity.codigoBarras, productEntity.nombre,
                                     productEntity.descripcion, productEntity.urlFoto, productEntity.formato, categoryEntity.nombre)
                             );
+                });
+    }
+
+    private Flowable<Integer> addProductToCategory(int productId, String categoria) {
+        return categoriesRepository.getCategoryByName(categoria)
+                .flatMap(categoryEntity -> {
+                    String query = "INSERT INTO categoria_producto(id_categoria, id_producto) VALUES(?, ?) RETURNING *";
+                    return db.select(query)
+                            .parameters(categoryEntity.id, productId)
+                            .get(rs -> rs.getInt("id_producto")
+                            );
+                });
+    }
+
+    public Flowable<ProductEntity> updateProduct(ProductEntity oldProduct, String codigoBarras, String nombre, String descripcion, String urlFoto, String formato, String category) {
+        if (!oldProduct.categoria.equals(category)) {
+            CategoryEntity categoryEntity = categoriesRepository.getCategoryByName(oldProduct.categoria).blockingLast();
+            String deleteRow = "DELETE FROM categoria_producto WHERE id_producto = ? AND id_categoria = ?  RETURNING *";
+            db.select(deleteRow)
+                    .parameters(oldProduct.id, categoryEntity.id)
+                    .get(rs -> "").blockingLast();
+            addProductToCategory(oldProduct.id, category);
+        }
+        String updateQuery = "UPDATE producto SET (codigo_barras, nombre, descripcion, url_foto, formato) " +
+                "= (?, ?, ?, ?, '" + formato + "') WHERE id = ? RETURNING *";
+        return db.select(updateQuery)
+                .parameters(codigoBarras, nombre, descripcion, urlFoto, oldProduct.id)
+                .get(rs -> {
+                    int id = rs.getInt("id");
+                    return new ProductEntity(id, codigoBarras, nombre, descripcion, urlFoto, formato, category);
                 });
     }
 }

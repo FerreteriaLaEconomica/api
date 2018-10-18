@@ -7,10 +7,7 @@ import api.data.products.ProductsRepository;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
-import io.micronaut.http.annotation.Body;
-import io.micronaut.http.annotation.Controller;
-import io.micronaut.http.annotation.Get;
-import io.micronaut.http.annotation.Post;
+import io.micronaut.http.annotation.*;
 import io.reactivex.Flowable;
 
 import javax.inject.Inject;
@@ -19,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static io.micronaut.http.HttpResponse.notFound;
 import static io.micronaut.http.HttpResponse.unprocessableEntity;
 
 /**
@@ -79,6 +77,40 @@ public class ProductsController {
             return ApiError.of(HttpResponse.notFound(), "Categoría '" + categoria + "' no encontrada");
 
         return productsRepo.createProduct(codigoBarras, nombre, descripcion, urlFoto, formato, categoria)
+                .map(HttpResponse::ok);
+    }
+
+    @Put("/{id}")
+    public Flowable<HttpResponse> updateProduct(HttpRequest request, String id, @Body ObjectNode body) {
+        int oldId;
+        try {
+            oldId = Integer.valueOf(id);
+        } catch (NumberFormatException e) {
+            return ApiError.of(HttpResponse.notFound(), "Producto con id '" + id + "' no encontrado");
+        }
+        Optional<Flowable<HttpResponse>> authError = auth.authenticate(request, "SUPER_ADMIN");
+        if (authError.isPresent()) return authError.get();
+
+        List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria");
+        String fields = requiredFields.stream().filter(required -> body.get(required) == null)
+                .collect(Collectors.joining(", "));
+        if (!fields.equals("")) {
+            return ApiError.of(unprocessableEntity(), "Faltan este(os) campo(s) para proceder: " + fields + ".");
+        }
+        ProductEntity oldProduct = productsRepo.getProductById(oldId).blockingLast();
+        if (oldProduct instanceof ProductEntity.NoProduct)
+            return ApiError.of(notFound(), "Producto con id '" + id + "' no encontrado");
+
+        String codigoBarras = body.get("codigo_barras").asText();
+        String nombre = body.get("nombre").asText();
+        String descripcion = body.get("descripcion").asText();
+        String urlFoto = body.get("url_foto").asText();
+        String formato = body.get("formato").asText();
+        String categoria = body.get("categoria").asText();
+        CategoryEntity categoryEntity = categoriesRepository.getCategoryByName(categoria).blockingLast();
+        if (categoryEntity instanceof CategoryEntity.NoCategory)
+            return ApiError.of(HttpResponse.notFound(), "Categoría '" + categoria + "' no encontrada");
+        return productsRepo.updateProduct(oldProduct, codigoBarras, nombre, descripcion, urlFoto, formato, categoria)
                 .map(HttpResponse::ok);
     }
 }
