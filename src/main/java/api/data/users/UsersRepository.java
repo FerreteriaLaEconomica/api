@@ -84,6 +84,21 @@ public class UsersRepository {
                         }));
     }
 
+    public Flowable<UserEntity> getUserById(int id) {
+        return getRolesFromUserId(id)
+                .flatMap(roles -> db.select("SELECT * FROM usuario WHERE id = ?")
+                        .parameters(id)
+                        .get(rs -> {
+                            String nombre = rs.getString("nombre");
+                            String email = rs.getString("email");
+                            String apellidos = rs.getString("apellidos");
+                            String password = rs.getString("password");
+                            String urlFoto = rs.getString("url_foto");
+                            String telefono = rs.getString("telefono");
+                            return new UserEntity(nombre, apellidos, email, password, urlFoto, telefono, roles);
+                        }));
+    }
+
     public Flowable<List<String>> getRolesFromUser(String email) {
         return db.select("SELECT r.nombre FROM role r, usuario u, user_role ur WHERE u.email = ? AND u.id = ur.id_usuario AND r.id = ur.id_role")
                 .parameters(email)
@@ -91,10 +106,16 @@ public class UsersRepository {
                 .toList().toFlowable();
     }
 
+    public Flowable<List<String>> getRolesFromUserId(int id) {
+        return db.select("SELECT r.nombre FROM role r, usuario u, user_role ur WHERE u.id = ? AND u.id = ur.id_usuario AND r.id = ur.id_role")
+                .parameters(id)
+                .get(rs -> rs.getString("nombre"))
+                .toList().toFlowable();
+    }
+
     public Flowable<Boolean> existsUserWithEmail(String email) {
         return db.select("SELECT COUNT(*) FROM usuario WHERE email = '" + email + "'")
-                .get(rs -> rs.getInt("count") == 1)
-                .onErrorReturn(throwable -> true);
+                .get(rs -> rs.getInt("count") == 1);
     }
 
     public Flowable<Boolean> existsUserWithRole(String userEmail, int roleNameId) {
