@@ -6,6 +6,7 @@ import api.data.categories.CategoriesRepository;
 import api.data.categories.CategoryEntity;
 import api.data.products.ProductEntity;
 import api.data.products.ProductsRepository;
+import api.data.sucursales.SucursalesRepository;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
@@ -28,6 +29,7 @@ import static io.micronaut.http.HttpResponse.unprocessableEntity;
 public class ProductsController {
     @Inject CategoriesRepository categoriesRepository;
     @Inject ProductsRepository productsRepo;
+    @Inject SucursalesRepository sucursalesRepo;
     @Inject Authenticator auth;
 
     @Get
@@ -58,7 +60,7 @@ public class ProductsController {
 
     @Post
     public Flowable<HttpResponse> createProduct(HttpRequest request, @Body ObjectNode body) {
-        Optional<Flowable<HttpResponse>> authError = auth.authenticate(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria");
@@ -79,6 +81,11 @@ public class ProductsController {
             return ApiError.of(HttpResponse.notFound(), "Categoría '" + categoria + "' no encontrada");
 
         return productsRepo.createProduct(codigoBarras, nombre, descripcion, urlFoto, formato, categoria)
+                .map(productEntity -> {
+                    sucursalesRepo.createInventoryForAllSucursales(productEntity.id, 0, 0.0, 0.1, 0)
+                            .blockingFirst(false);
+                    return productEntity;
+                })
                 .map(HttpResponse::ok);
     }
 
@@ -90,7 +97,7 @@ public class ProductsController {
         } catch (NumberFormatException e) {
             return ApiError.of(HttpResponse.notFound(), "Producto con id '" + id + "' no encontrado");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authenticate(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria");
@@ -124,7 +131,7 @@ public class ProductsController {
         } catch (NumberFormatException e) {
             return ApiError.of(HttpResponse.notFound(), "Producto con id '" + id + "' no encontrado");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authenticate(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
         if (authError.isPresent()) return authError.get();
 
         return productsRepo.getProductById(oldId)

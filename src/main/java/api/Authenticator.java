@@ -32,7 +32,7 @@ public class Authenticator {
         this.jwtVerifier = jwtVerifier;
     }
 
-    public Optional<Flowable<HttpResponse>> authenticate(HttpRequest request, String... requiredRoles) {
+    public Optional<Flowable<HttpResponse>> authorize(HttpRequest request, String... requiredRoles) {
         Optional<String> authorization = request.getHeaders().getAuthorization();
         if (!authorization.isPresent()) {
             return Optional.of(ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token"));

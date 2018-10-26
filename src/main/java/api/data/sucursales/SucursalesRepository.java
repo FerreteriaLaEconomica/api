@@ -15,11 +15,24 @@ import java.util.List;
 public class SucursalesRepository {
     private Database db;
     private UsersRepository usersRepo;
+    private InventoryRepository inventoryRepo;
 
     @Inject
-    public SucursalesRepository(Database db, UsersRepository usersRepo) {
+    public SucursalesRepository(Database db, UsersRepository usersRepo, InventoryRepository inventoryRepo) {
         this.db = db;
         this.usersRepo = usersRepo;
+        this.inventoryRepo = inventoryRepo;
+    }
+
+    public Flowable<Boolean> createInventoryForAllSucursales(int idProducto, int cantidad, double precioCompra,
+                                                             double precioVenta, int porcentajeDescuento) {
+        return getAllSucursales()
+                .flatMap(Flowable::fromIterable)
+                .flatMap(sucursalEntity -> inventoryRepo.createInventory(sucursalEntity.id, idProducto, cantidad, precioCompra,
+                        precioVenta, porcentajeDescuento))
+                .count()
+                .map(total -> total > 0)
+                .toFlowable();
     }
 
     public Flowable<Integer> deleteSucursalById(int id) {

@@ -52,7 +52,7 @@ public class CategoriesController {
 
     @Post
     public Flowable<HttpResponse> createCategory(HttpRequest request, @Body ObjectNode body) {
-        Optional<Flowable<HttpResponse>> authError = auth.authenticate(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("nombre");
@@ -75,7 +75,7 @@ public class CategoriesController {
         } catch (NumberFormatException e) {
             return ApiError.of(notFound(), "Categoría con id '" + id + "' no encontrada");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authenticate(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("nombre");
@@ -110,7 +110,7 @@ public class CategoriesController {
         } catch (NumberFormatException e) {
             return ApiError.of(HttpResponse.notFound(), "Categoría con id '" + id + "' no encontrada");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authenticate(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
         if (authError.isPresent()) return authError.get();
 
         return categoriesRepository.getCategoryById(oldId)

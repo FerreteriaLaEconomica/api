@@ -2,6 +2,7 @@ package api.data.products;
 
 import api.data.categories.CategoriesRepository;
 import api.data.categories.CategoryEntity;
+import api.data.sucursales.InventoryRepository;
 import io.reactivex.Flowable;
 import org.davidmoten.rx.jdbc.Database;
 
@@ -16,11 +17,24 @@ import java.util.List;
 public class ProductsRepository {
     private Database db;
     private CategoriesRepository categoriesRepository;
+    private InventoryRepository inventoryRepo;
 
     @Inject
-    public ProductsRepository(Database db, CategoriesRepository categoriesRepository) {
+    public ProductsRepository(Database db, CategoriesRepository categoriesRepository, InventoryRepository inventoryRepo) {
         this.db = db;
         this.categoriesRepository = categoriesRepository;
+        this.inventoryRepo = inventoryRepo;
+    }
+
+    public Flowable<Boolean> createInventoryForAllProducts(int idSucursal, int cantidad, double precioCompra,
+                                                             double precioVenta, int porcentajeDescuento) {
+        return getAllProducts()
+                .flatMap(Flowable::fromIterable)
+                .flatMap(productEntity -> inventoryRepo.createInventory(idSucursal, productEntity.id, cantidad, precioCompra,
+                        precioVenta, porcentajeDescuento))
+                .count()
+                .map(total -> total > 0)
+                .toFlowable();
     }
 
     public Flowable<ProductEntity> getProductById(int id) {
