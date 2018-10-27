@@ -67,7 +67,6 @@ public class CategoriesRepository {
     }
 
     public Flowable<CategoryEntity> updateCategory(int id, String nombre) {
-        System.out.println("heyyyy");
         String updateQuery = "UPDATE categoria SET nombre = ? WHERE id = ? " +
                 "RETURNING *";
         return db.select(updateQuery)
@@ -75,7 +74,6 @@ public class CategoriesRepository {
                 .get(rs -> {
                     int i = rs.getInt("id");
                     String n = rs.getString("nombre");
-                    System.out.println(i+n);
                     return new CategoryEntity(i, n);
                 });
     }

@@ -1,6 +1,5 @@
 package api.data.users;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -13,16 +12,16 @@ public class UserEntity {
     public final String password;
     public final String url_foto;
     public final String telefono;
-    public final List<String> roles;
+    public final boolean isSuperAdmin;
 
-    public UserEntity(String nombre, String apellidos, String email, String password, String url_foto, String telefono, List<String> roles) {
+    public UserEntity(String nombre, String apellidos, String email, String password, String url_foto, String telefono, boolean isSuperAdmin) {
         this.nombre = nombre;
         this.apellidos = apellidos;
         this.email = email;
         this.password = password;
         this.url_foto = url_foto;
         this.telefono = telefono;
-        this.roles = roles;
+        this.isSuperAdmin = isSuperAdmin;
     }
 
     @Override
@@ -30,18 +29,18 @@ public class UserEntity {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UserEntity that = (UserEntity) o;
-        return Objects.equals(nombre, that.nombre) &&
+        return isSuperAdmin == that.isSuperAdmin &&
+                Objects.equals(nombre, that.nombre) &&
                 Objects.equals(apellidos, that.apellidos) &&
                 Objects.equals(email, that.email) &&
                 Objects.equals(password, that.password) &&
                 Objects.equals(url_foto, that.url_foto) &&
-                Objects.equals(telefono, that.telefono) &&
-                Objects.equals(roles, that.roles);
+                Objects.equals(telefono, that.telefono);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nombre, apellidos, email, password, url_foto, telefono, roles);
+        return Objects.hash(nombre, apellidos, email, password, url_foto, telefono, isSuperAdmin);
     }
 
     @Override
@@ -53,7 +52,7 @@ public class UserEntity {
                 ", password='" + password + '\'' +
                 ", url_foto='" + url_foto + '\'' +
                 ", telefono='" + telefono + '\'' +
-                ", roles=" + roles +
+                ", isSuperAdmin=" + isSuperAdmin +
                 '}';
     }
 }

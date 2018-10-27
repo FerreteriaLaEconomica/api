@@ -10,7 +10,6 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.TokenExpiredException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
@@ -54,7 +53,7 @@ public class UserController {
         Claim emailClaim = jwt.getClaim("email");
         if (!emailClaim.isNull()) {
             UsuarioResponse user = usersRepo.getUserByEmail(emailClaim.asString())
-                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.roles), u.nombre, u.apellidos, u.url_foto, u.telefono, u.roles))
+                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.isSuperAdmin), u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
                     .blockingFirst(null);
             if (user == null) {
                 return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
@@ -85,7 +84,7 @@ public class UserController {
             return ApiError.of(notFound(), "El usuario con el correo: '" + email + "' NO existe ó la contraseña es incorrecta.");
         } else {
             return usersRepo.getUserByEmail(email)
-                    .map(u -> new UsuarioResponse(email, getToken(email, u.roles), u.nombre, u.apellidos, u.url_foto, u.telefono, u.roles))
+                    .map(u -> new UsuarioResponse(email, getToken(email, u.isSuperAdmin), u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
                     .map(HttpResponse::ok);
         }
     }
@@ -114,11 +113,10 @@ public class UserController {
             if (body.get("telefono") != null) {
                 telefono = body.get("telefono").asText();
             }
-            usersRepo.saveUser(nombre, apellidos, email, password, url_foto, telefono)
-                    .blockingSingle();
 
-            UsuarioResponse user = new UsuarioResponse(email, getToken(email, Arrays.asList()), nombre, apellidos, url_foto, telefono);
-            return Flowable.just(ok(user));
+            return usersRepo.saveUser(nombre, apellidos, email, password, url_foto, telefono)
+                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.isSuperAdmin), u.nombre, u.apellidos, u.url_foto, u.telefono))
+                    .map(HttpResponse::ok);
         }
     }
 
@@ -160,6 +158,7 @@ public class UserController {
                 telefono = body.get("telefono").asText();
             }
             return usersRepo.updateUserData(emailClaim.asString(), nombre, apellidos, urlFoto, telefono)
+                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.isSuperAdmin), u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
                     .map(HttpResponse::ok);
         } else {
             return ApiError.of(unauthorized(), "El token es inválido.");
@@ -187,14 +186,14 @@ public class UserController {
             if (!existsUser) {
                 return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
             }
-            Claim rolesClaim = jwt.getHeaderClaim("roles");
+            Claim rolesClaim = jwt.getHeaderClaim("is_super_admin");
             if (rolesClaim.isNull()) {
                 return ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
                         "El usuario '" + emailClaim.asString() + "' NO cuenta con los permisos necesarios");
             } else {
-                List<String> userRoles = rolesClaim.asList(String.class);
-                if (userRoles.contains("SUPER_ADMIN")) {
-                    List<String> requiredFields = Arrays.asList("email", "roles");
+                boolean isSuperAdmin = rolesClaim.asBoolean();
+                if (isSuperAdmin) {
+                    List<String> requiredFields = Arrays.asList("email", "is_super_admin");
                     String fields = requiredFields.stream().filter(required -> body.get(required) == null)
                             .collect(Collectors.joining(", "));
                     if (!fields.equals("")) {
@@ -202,12 +201,14 @@ public class UserController {
                     }
 
                     String userEmail = body.get("email").asText();
-                    List<String> roles = new ArrayList<>();
-                    Iterator<JsonNode> iterator = body.get("roles").elements();
-                    while (iterator.hasNext()) {
-                        roles.add(iterator.next().asText());
-                    }
-                    return usersRepo.addRoles(userEmail, roles)
+                    boolean userIsSuperAdmin = body.get("is_super_admin").asBoolean();
+                    return usersRepo.addRoles(userEmail, userIsSuperAdmin)
+                            .map(u -> {
+                                Map<String, Object> map = new HashMap<>(2);
+                                map.put("email", u.email);
+                                map.put("is_super_admin", u.isSuperAdmin);
+                                return map;
+                            })
                             .map(HttpResponse::ok);
                 } else {
                     return ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
@@ -223,10 +224,10 @@ public class UserController {
         return BCrypt.hashpw(password, BCrypt.gensalt(5));
     }
 
-    private String getToken(String email, List<String> roles) {
+    private String getToken(String email, boolean isSuperAdmin) {
         Map<String, Object> headerClaims = new HashMap<>();
         headerClaims.put("email", email);
-        headerClaims.put("roles", roles);
+        headerClaims.put("is_super_admin", isSuperAdmin);
         return jwtSigner.withHeader(headerClaims)
                 .withClaim("email", email)
                 .withIssuedAt(new Date())

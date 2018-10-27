@@ -52,7 +52,7 @@ public class CategoriesController {
 
     @Post
     public Flowable<HttpResponse> createCategory(HttpRequest request, @Body ObjectNode body) {
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("nombre");
@@ -68,14 +68,14 @@ public class CategoriesController {
     }
 
     @Put("/{id}")
-    public Flowable<HttpResponse> updateProduct(HttpRequest request, String id, @Body ObjectNode body) {
+    public Flowable<HttpResponse> updateCategory(HttpRequest request, String id, @Body ObjectNode body) {
         int oldId;
         try {
             oldId = Integer.valueOf(id);
         } catch (NumberFormatException e) {
             return ApiError.of(notFound(), "Categoría con id '" + id + "' no encontrada");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("nombre");
@@ -95,7 +95,6 @@ public class CategoriesController {
                     return new CategoryEntity.NoCategory();
                 })
                 .flatMap(categoryEntity -> {
-                    System.out.println(categoryEntity);
                     if (categoryEntity instanceof CategoryEntity.NoCategory)
                         return ApiError.of(HttpResponse.notFound(), "Categoría con id '" + id + "' no encontrada");
                     return Flowable.just(HttpResponse.ok(categoryEntity));
@@ -110,7 +109,7 @@ public class CategoriesController {
         } catch (NumberFormatException e) {
             return ApiError.of(HttpResponse.notFound(), "Categoría con id '" + id + "' no encontrada");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
         return categoriesRepository.getCategoryById(oldId)

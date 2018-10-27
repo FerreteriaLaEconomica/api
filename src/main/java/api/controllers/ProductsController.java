@@ -60,7 +60,7 @@ public class ProductsController {
 
     @Post
     public Flowable<HttpResponse> createProduct(HttpRequest request, @Body ObjectNode body) {
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria");
@@ -97,7 +97,7 @@ public class ProductsController {
         } catch (NumberFormatException e) {
             return ApiError.of(HttpResponse.notFound(), "Producto con id '" + id + "' no encontrado");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria");
@@ -131,7 +131,7 @@ public class ProductsController {
         } catch (NumberFormatException e) {
             return ApiError.of(HttpResponse.notFound(), "Producto con id '" + id + "' no encontrado");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
         return productsRepo.getProductById(oldId)

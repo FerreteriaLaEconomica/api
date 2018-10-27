@@ -45,7 +45,7 @@ public class SucursalesController {
 
     @Put("/{idSucursal}/productos/{idProducto}")
     public Flowable<HttpResponse> updateProductOfSucursal(HttpRequest request, @Body ObjectNode body, String idSucursal, String idProducto) {
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN", "ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, true, true);
         if (authError.isPresent()) return authError.get();
         int newSucursalId;
         try {
@@ -161,7 +161,7 @@ public class SucursalesController {
 
     @Post
     public Flowable<HttpResponse> createSucursal(HttpRequest request, @Body ObjectNode body) {
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
         List<String> requiredFields = Arrays.asList("nombre", "calle", "numero_exterior", "colonia", "codigo_postal",
@@ -200,14 +200,14 @@ public class SucursalesController {
     }
 
     @Delete("/{id}")
-    public Flowable<HttpResponse> deleteProduct(HttpRequest request, String id) {
+    public Flowable<HttpResponse> deleteSucursal(HttpRequest request, String id) {
         int oldId;
         try {
             oldId = Integer.valueOf(id);
         } catch (NumberFormatException e) {
             return ApiError.of(HttpResponse.notFound(), "Sucursal con id '" + id + "' no encontrada");
         }
-        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, "SUPER_ADMIN");
+        Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
         return sucursalesRepo.getSucursalById(oldId)

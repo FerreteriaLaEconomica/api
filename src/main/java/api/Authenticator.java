@@ -1,5 +1,6 @@
 package api;
 
+import api.data.users.UsersRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.exceptions.TokenExpiredException;
@@ -15,7 +16,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.text.DateFormat;
 import java.util.Date;
-import java.util.List;
 import java.util.Optional;
 
 import static io.micronaut.http.HttpResponse.unauthorized;
@@ -26,13 +26,15 @@ import static io.micronaut.http.HttpResponse.unauthorized;
 @Singleton
 public class Authenticator {
     private JWTVerifier jwtVerifier;
+    private UsersRepository usersRepo;
 
     @Inject
-    public Authenticator(JWTVerifier jwtVerifier) {
+    public Authenticator(JWTVerifier jwtVerifier, UsersRepository usersRepo) {
         this.jwtVerifier = jwtVerifier;
+        this.usersRepo = usersRepo;
     }
 
-    public Optional<Flowable<HttpResponse>> authorize(HttpRequest request, String... requiredRoles) {
+    public Optional<Flowable<HttpResponse>> authorize(HttpRequest request, boolean hasToBeAdmin, boolean hasToBeSuperAdmin) {
         Optional<String> authorization = request.getHeaders().getAuthorization();
         if (!authorization.isPresent()) {
             return Optional.of(ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token"));
@@ -47,27 +49,20 @@ public class Authenticator {
         }
         Claim emailClaim = jwt.getClaim("email");
         if (!emailClaim.isNull()) {
-            if (requiredRoles.length > 0) {
-                Optional<Flowable<HttpResponse>> rolesError = checkRoles(jwt, emailClaim.asString(), requiredRoles);
-                return rolesError;
-            } else return Optional.empty();
+            if (hasToBeAdmin) {
+                if (usersRepo.userIsAdmin(emailClaim.asString())) return Optional.empty();
+                else return Optional.of(ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
+                        "El usuario '" + emailClaim.asString() + "' NO cuenta con los permisos necesarios"));
+            }
+            if (hasToBeSuperAdmin) {
+                Claim superAdmin = jwt.getHeaderClaim("is_super_admin");
+                if (!superAdmin.isNull() && superAdmin.asBoolean()) return Optional.empty();
+                else return Optional.of(ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
+                        "El usuario '" + emailClaim.asString() + "' NO cuenta con los permisos necesarios"));
+            }
+            return Optional.empty();
         } else {
             return Optional.of(ApiError.of(unauthorized(), "El token es inválido."));
-        }
-    }
-
-    private Optional<Flowable<HttpResponse>> checkRoles(DecodedJWT jwt, String userEmail, String... requiredRoles) {
-        Claim rolesClaim = jwt.getHeaderClaim("roles");
-        if (rolesClaim.isNull()) {
-            return Optional.of(ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
-                    "El usuario '" + userEmail + "' NO cuenta con los permisos necesarios"));
-        } else {
-            List<String> userRoles = rolesClaim.asList(String.class);
-            for (String r : requiredRoles) {
-                if (userRoles.contains(r)) return Optional.empty();
-            }
-            return Optional.of(ApiError.of(HttpResponseFactory.INSTANCE.status(HttpStatus.FORBIDDEN),
-                    "El usuario '" + userEmail + "' NO cuenta con los permisos necesarios"));
         }
     }
 }
