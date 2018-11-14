@@ -5,11 +5,17 @@ plugins {
     id "net.ltgt.apt-idea" version "0.18"	
 }
 
+apply plugin: "io.spring.dependency-management"
 apply plugin:"application"
 apply plugin:"java"
 
 version "0.0.3"
 group "api"
+
+jar {
+    baseName = 'api'
+    version = '0.0.3'
+}
 
 repositories {
     mavenLocal()
@@ -20,7 +26,7 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom 'io.micronaut:bom:1.0.0.RC1'
+        mavenBom 'io.micronaut:bom:1.0.0.RC2'
     }
 }
 
@@ -47,6 +53,16 @@ dependencies {
 shadowJar {
     mergeServiceFiles()
 }
+
+task stage(dependsOn: ['build', 'clean'])
+build.mustRunAfter clean
+
+task copyToLib(type: Copy) {
+    into "$buildDir/lib"
+    from(configurations.compile)
+}
+
+stage.dependsOn(copyToLib)
 
 run.jvmArgs('-noverify', '-XX:TieredStopAtLevel=1')
 mainClassName = "api.Application"
