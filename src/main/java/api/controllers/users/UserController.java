@@ -2,6 +2,8 @@ package api.controllers.users;
 
 import api.ApiError;
 import api.Constants;
+import api.data.sucursales.SucursalEntity;
+import api.data.sucursales.SucursalesRepository;
 import api.data.users.UsersRepository;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTCreator;
@@ -20,6 +22,7 @@ import io.reactivex.Flowable;
 import org.mindrot.jbcrypt.BCrypt;
 
 import javax.inject.Inject;
+import java.nio.charset.Charset;
 import java.text.DateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -32,9 +35,22 @@ import static io.micronaut.http.HttpResponse.*;
 @Controller("/users")
 public class UserController {
     @Inject UsersRepository usersRepo;
+    @Inject SucursalesRepository sucursalesRepo;
     @Inject JWTCreator.Builder jwtSigner;
     @Inject Algorithm jwtAlgorithm;
     @Inject JWTVerifier jwtVerifier;
+
+    public static void main(String[] args) {
+        String text = "asno:burro";
+        String encoded = Base64.getEncoder().encodeToString(text.getBytes(Charset.forName("UTF-8")));
+        System.out.println(encoded);
+
+        byte[] decodedArray = Base64.getDecoder().decode(encoded);
+        String decoded = new String(decodedArray, Charset.forName("UTF-8"));
+        System.out.println(decoded);
+        System.out.println(decoded.equals(text));
+
+    }
 
     @Get("/me")
     public Flowable<HttpResponse> currentUser(HttpRequest request) {
@@ -53,12 +69,44 @@ public class UserController {
         Claim emailClaim = jwt.getClaim("email");
         if (!emailClaim.isNull()) {
             UsuarioResponse user = usersRepo.getUserByEmail(emailClaim.asString())
-                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.isSuperAdmin), u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
+                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
                     .blockingFirst(null);
             if (user == null) {
                 return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
             }
-            return Flowable.just(ok(user));
+            return Flowable.just(
+                    ok(user)
+                        .header("Authorization", getToken(user.email, user.is_super_admin))
+            );
+        } else {
+            return ApiError.of(unauthorized(), "El token es inválido.");
+        }
+    }
+
+    @Get("/sucursales")
+    public Flowable<HttpResponse> sucursalesOfCurrentUser(HttpRequest request) {
+        Optional<String> authorization = request.getHeaders().getAuthorization();
+        if (!authorization.isPresent()) {
+            return ApiError.of(unauthorized(), "La petición NO incluye el header 'Authorization' con el token");
+        }
+        String token = authorization.get().substring(7);
+        DecodedJWT jwt;
+        try {
+            jwt = jwtVerifier.verify(token);
+        } catch (TokenExpiredException e) {
+            Date date = JWT.decode(token).getExpiresAt();
+            return ApiError.of(unauthorized(), "El token expiró. Fecha de expiración: " + DateFormat.getDateTimeInstance().format(date));
+        }
+        Claim emailClaim = jwt.getClaim("email");
+        if (!emailClaim.isNull()) {
+            UsuarioResponse user = usersRepo.getUserByEmail(emailClaim.asString())
+                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
+                    .blockingFirst(null);
+            if (user == null) {
+                return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
+            }
+            return sucursalesRepo.getSucursalesByAdmin(user)
+                    .map(HttpResponse::ok);
         } else {
             return ApiError.of(unauthorized(), "El token es inválido.");
         }
@@ -84,8 +132,11 @@ public class UserController {
             return ApiError.of(notFound(), "El usuario con el correo: '" + email + "' NO existe ó la contraseña es incorrecta.");
         } else {
             return usersRepo.getUserByEmail(email)
-                    .map(u -> new UsuarioResponse(email, getToken(email, u.isSuperAdmin), u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
-                    .map(HttpResponse::ok);
+                    .map(u -> new UsuarioResponse(email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
+                    .map(response -> {
+                        return HttpResponse.ok(response)
+                                .header("Authorization", getToken(response.email, response.is_super_admin));
+                    });
         }
     }
 
@@ -115,8 +166,11 @@ public class UserController {
             }
 
             return usersRepo.saveUser(nombre, apellidos, email, password, url_foto, telefono)
-                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.isSuperAdmin), u.nombre, u.apellidos, u.url_foto, u.telefono))
-                    .map(HttpResponse::ok);
+                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono))
+                    .map(response -> {
+                        return HttpResponse.ok(response)
+                                .header("Authorization", getToken(response.email, response.is_super_admin));
+                    });
         }
     }
 
@@ -158,8 +212,11 @@ public class UserController {
                 telefono = body.get("telefono").asText();
             }
             return usersRepo.updateUserData(emailClaim.asString(), nombre, apellidos, urlFoto, telefono)
-                    .map(u -> new UsuarioResponse(u.email, getToken(u.email, u.isSuperAdmin), u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
-                    .map(HttpResponse::ok);
+                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
+                    .map(response -> {
+                        return HttpResponse.ok(response)
+                                .header("Authorization", getToken(response.email, response.is_super_admin));
+                    });
         } else {
             return ApiError.of(unauthorized(), "El token es inválido.");
         }

@@ -1,7 +1,10 @@
 package api.data.sucursales;
 
+import api.controllers.users.UsuarioResponse;
 import api.data.users.UsersRepository;
 import io.reactivex.Flowable;
+import io.reactivex.functions.Function;
+import io.reactivex.functions.Predicate;
 import org.davidmoten.rx.jdbc.Database;
 
 import javax.inject.Inject;
@@ -149,5 +152,13 @@ public class SucursalesRepository {
         return usersRepo.getUserByEmail(email)
                 .map(u -> new AdminEntity(u.nombre, u.apellidos, u.email, u.telefono, u.url_foto))
                 .blockingLast();
+    }
+
+    public Flowable<List<SucursalEntity>> getSucursalesByAdmin(UsuarioResponse user) {
+        if (user.is_super_admin) return getAllSucursales();
+        return getAllSucursales().flatMapIterable(sucursalEntities -> sucursalEntities)
+                .filter(sucursalEntity -> sucursalEntity.administrador.email.equals(user.email))
+                .toList()
+                .toFlowable();
     }
 }
