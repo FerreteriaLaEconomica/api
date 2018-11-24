@@ -3,8 +3,6 @@ package api.data.sucursales;
 import api.controllers.users.UsuarioResponse;
 import api.data.users.UsersRepository;
 import io.reactivex.Flowable;
-import io.reactivex.functions.Function;
-import io.reactivex.functions.Predicate;
 import org.davidmoten.rx.jdbc.Database;
 
 import javax.inject.Inject;
@@ -27,17 +25,6 @@ public class SucursalesRepository {
         this.inventoryRepo = inventoryRepo;
     }
 
-    public Flowable<Boolean> createInventoryForAllSucursales(int idProducto, int cantidad, double precioCompra,
-                                                             double precioVenta, int porcentajeDescuento) {
-        return getAllSucursales()
-                .flatMap(Flowable::fromIterable)
-                .flatMap(sucursalEntity -> inventoryRepo.createInventory(sucursalEntity.id, idProducto, cantidad, precioCompra,
-                        precioVenta, porcentajeDescuento))
-                .count()
-                .map(total -> total > 0)
-                .toFlowable();
-    }
-
     public Flowable<Integer> deleteSucursalById(int id) {
         String deleteRow = "DELETE FROM sucursal WHERE id = ? RETURNING *";
         return db.select(deleteRow)
@@ -51,10 +38,10 @@ public class SucursalesRepository {
         AdminEntity adminEntity = getAdminByEmail(emailAdmin);
 
         String addSucursalQuery = "INSERT INTO sucursal (nombre, calle, numero_exterior, colonia, codigo_postal, " +
-                "localidad, municipio, estado, email_administrador) " +
+                "localidad, municipio, estado, id_administrador) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
         return db.update(addSucursalQuery)
-                .parameters(nombre, calle, numeroExterior, colonia, codigoPostal, localidad, municipio, estado, adminEntity.email)
+                .parameters(nombre, calle, numeroExterior, colonia, codigoPostal, localidad, municipio, estado, adminEntity.id)
                 .returnGeneratedKeys()
                 .get(rs -> {
                     int id = rs.getInt("id");
@@ -78,8 +65,8 @@ public class SucursalesRepository {
         return db.select(query)
                 .parameters(name)
                 .get(rs -> {
-                    String emailAdmin = rs.getString("email_administrador");
-                    AdminEntity admin = getAdminByEmail(emailAdmin);
+                    int idAdmin = rs.getInt("id_administrador");
+                    AdminEntity admin = getAdminById(idAdmin);
                     return new SucursalEntity.Builder()
                             .id(rs.getInt("id"))
                             .nombre(rs.getString("nombre"))
@@ -92,8 +79,7 @@ public class SucursalesRepository {
                             .estado(rs.getString("estado"))
                             .administrador(admin)
                             .build();
-                })
-                .onErrorReturn(throwable -> new SucursalEntity.NoSucursal());
+                });
     }
 
     public Flowable<SucursalEntity> getSucursalById(int id) {
@@ -101,8 +87,8 @@ public class SucursalesRepository {
         return db.select(query)
                 .parameters(id)
                 .get(rs -> {
-                    String emailAdmin = rs.getString("email_administrador");
-                    AdminEntity admin = getAdminByEmail(emailAdmin);
+                    int idAdmin = rs.getInt("id_administrador");
+                    AdminEntity admin = getAdminById(idAdmin);
                     return new SucursalEntity.Builder()
                             .id(rs.getInt("id"))
                             .nombre(rs.getString("nombre"))
@@ -115,16 +101,15 @@ public class SucursalesRepository {
                             .estado(rs.getString("estado"))
                             .administrador(admin)
                             .build();
-                })
-                .onErrorReturn(throwable -> new SucursalEntity.NoSucursal());
+                });
     }
 
     public Flowable<List<SucursalEntity>> getAllSucursales() {
         String query = "SELECT * FROM sucursal";
         return db.select(query)
                 .get(rs -> {
-                    String emailAdmin = rs.getString("email_administrador");
-                    AdminEntity admin = getAdminByEmail(emailAdmin);
+                    int idAdmin = rs.getInt("id_administrador");
+                    AdminEntity admin = getAdminById(idAdmin);
                     return new SucursalEntity.Builder()
                             .id(rs.getInt("id"))
                             .nombre(rs.getString("nombre"))
@@ -144,13 +129,13 @@ public class SucursalesRepository {
 
     private AdminEntity getAdminById(int id) {
         return usersRepo.getUserById(id)
-                .map(u -> new AdminEntity(u.nombre, u.apellidos, u.email, u.telefono, u.url_foto))
+                .map(u -> new AdminEntity(u.id, u.nombre, u.apellidos, u.email, u.telefono, u.url_foto))
                 .blockingLast();
     }
 
     private AdminEntity getAdminByEmail(String email) {
         return usersRepo.getUserByEmail(email)
-                .map(u -> new AdminEntity(u.nombre, u.apellidos, u.email, u.telefono, u.url_foto))
+                .map(u -> new AdminEntity(u.id, u.nombre, u.apellidos, u.email, u.telefono, u.url_foto))
                 .blockingLast();
     }
 

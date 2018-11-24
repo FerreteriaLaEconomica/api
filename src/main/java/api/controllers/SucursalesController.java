@@ -32,15 +32,13 @@ public class SucursalesController {
     private Authenticator auth;
     private UsersRepository usersRepo;
     private InventoryRepository inventoryRepo;
-    private ProductsRepository productsRepo;
 
     @Inject
-    public SucursalesController(SucursalesRepository sucursalesRepo, Authenticator auth, UsersRepository usersRepo, InventoryRepository inventoryRepo, ProductsRepository productsRepo) {
+    public SucursalesController(SucursalesRepository sucursalesRepo, Authenticator auth, UsersRepository usersRepo, InventoryRepository inventoryRepo) {
         this.sucursalesRepo = sucursalesRepo;
         this.auth = auth;
         this.usersRepo = usersRepo;
         this.inventoryRepo = inventoryRepo;
-        this.productsRepo = productsRepo;
     }
 
     @Put("/{idSucursal}/productos/{idProducto}")
@@ -66,18 +64,15 @@ public class SucursalesController {
         InventoryEntity i = inventoryRepo.getInventoryById(newId).blockingFirst(new InventoryEntity.NoInventory());
         if (i instanceof InventoryEntity.NoInventory)
             return ApiError.of(notFound(), "El producto con id '" + newId + "' no existe");
-        List<String> requiredFields = Arrays.asList("cantidad", "precio_compra", "precio_venta", "porcentaje_descuento");
+        List<String> requiredFields = Arrays.asList("cantidad");
         String fields = requiredFields.stream().filter(required -> body.get(required) == null)
                 .collect(Collectors.joining(", "));
         if (!fields.equals("")) {
             return ApiError.of(unprocessableEntity(), "Faltan este(os) campo(s) para proceder: " + fields + ".");
         }
         int cantidad = body.get("cantidad").asInt();
-        double precioCompra = body.get("precio_compra").asDouble();
-        double precioVenta = body.get("precio_venta").asDouble();
-        int porcentajeDescuento = body.get("porcentaje_descuento").asInt();
 
-        return inventoryRepo.updateInventory(newSucursalId, newId, cantidad, precioCompra, precioVenta, porcentajeDescuento)
+        return inventoryRepo.updateInventory(newSucursalId, newId, cantidad)
                 .first(new InventoryEntity.NoInventory())
                 .toFlowable()
                 .flatMap(inventoryEntity -> {
@@ -127,7 +122,8 @@ public class SucursalesController {
         } catch (NumberFormatException e) {
             return ApiError.of(HttpResponse.notFound(), "Sucursal con id '" + idSucursal + "' no encontrada");
         }
-        SucursalEntity s = sucursalesRepo.getSucursalById(newId).blockingFirst(new SucursalEntity.NoSucursal());
+        SucursalEntity s = sucursalesRepo.getSucursalById(newId)
+                .blockingFirst(new SucursalEntity.NoSucursal());
         if (s instanceof SucursalEntity.NoSucursal)
             return ApiError.of(notFound(), "La sucursal con id '" + newId + "' no existe");
 
@@ -191,11 +187,6 @@ public class SucursalesController {
         if (!existsUser) return ApiError.of(HttpResponse.notFound(), "No existe ningún usuario con el email: '" + emailAdmin + "'");
 
         return sucursalesRepo.createSucursal(nombre, calle, numeroExterior, colonia, codigoPostal, localidad, municipio, estado, emailAdmin)
-                .map(sucursal -> {
-                    productsRepo.createInventoryForAllProducts(sucursal.id, 0, 0.0, 0.1, 0)
-                            .blockingFirst(false);
-                    return sucursal;
-                })
                 .map(HttpResponse::ok);
     }
 

@@ -1,5 +1,7 @@
 package api.data.sucursales;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Objects;
 
 /**
@@ -9,8 +11,10 @@ public class SucursalEntity {
     public final int id;
     public final String nombre;
     public final String calle;
+    @JsonProperty("numero_exterior")
     public final String numeroExterior;
     public final String colonia;
+    @JsonProperty("codigo_postal")
     public final int codigoPostal;
     public final String localidad;
     public final String municipio;

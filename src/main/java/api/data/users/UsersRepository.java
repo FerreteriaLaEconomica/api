@@ -1,7 +1,9 @@
 package api.data.users;
 
 import io.reactivex.Flowable;
+import io.reactivex.functions.Function;
 import org.davidmoten.rx.jdbc.Database;
+import org.reactivestreams.Publisher;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -19,12 +21,21 @@ public class UsersRepository {
     }
 
     public boolean userIsAdmin(String userEmail) {
-        String query = "select count(*) from sucursal where email_administrador = ?;";
+        return getUserByEmail(userEmail)
+                .flatMap(userEntity -> {
+                    String query = "select count(*) from sucursal where id_administrador = ?;";
+                    return userEntity.isSuperAdmin ? Flowable.just(1) : db.select(query)
+                            .parameters(userEntity.id)
+                            .get(rs -> rs.getInt("count"));
+                })
+                .map(c -> c > 0)
+                .blockingFirst(false);
+        /*String query = "select count(*) from sucursal where id_administrador = ?;";
         return db.select(query)
                 .parameters(userEmail)
                 .get(rs -> rs.getInt("count"))
                 .map(c -> c > 0)
-                .blockingFirst(false);
+                .blockingFirst(false);*/
     }
 
     public Flowable<UserEntity> addRoles(String email, boolean isSuperAdmin) {
@@ -55,6 +66,7 @@ public class UsersRepository {
 
     private Flowable<String> updateUserData(String email, String fieldName, Object value) {
         String val = value instanceof CharSequence ? "'" + value + "'" : value.toString();
+
         String query = "UPDATE usuario SET " + fieldName + " = " + val +
                 " WHERE email = '" + email + "' RETURNING *";
         return db.update(query).returnGeneratedKeys()
@@ -65,13 +77,14 @@ public class UsersRepository {
         return db.select("SELECT * FROM usuario WHERE email = ?")
                 .parameters(email)
                 .get(rs -> {
+                    int id = rs.getInt("id");
                     String nombre = rs.getString("nombre");
                     String apellidos = rs.getString("apellidos");
                     String password = rs.getString("password");
                     String urlFoto = rs.getString("url_foto");
                     String telefono = rs.getString("telefono");
                     boolean isSuperAdmin = rs.getBoolean("is_super_admin");
-                    return new UserEntity(nombre, apellidos, email, password, urlFoto, telefono, isSuperAdmin);
+                    return new UserEntity(id, nombre, apellidos, email, password, urlFoto, telefono, isSuperAdmin);
                 });
     }
 
@@ -86,7 +99,7 @@ public class UsersRepository {
                     String urlFoto = rs.getString("url_foto");
                     String telefono = rs.getString("telefono");
                     boolean isSuperAdmin = rs.getBoolean("is_super_admin");
-                    return new UserEntity(nombre, apellidos, email, password, urlFoto, telefono, isSuperAdmin);
+                    return new UserEntity(id, nombre, apellidos, email, password, urlFoto, telefono, isSuperAdmin);
                 });
     }
 
