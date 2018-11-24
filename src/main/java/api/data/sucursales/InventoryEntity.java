@@ -1,6 +1,7 @@
 package api.data.sucursales;
 
 import api.data.products.ProductEntity;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Objects;
 
@@ -11,18 +12,14 @@ public class InventoryEntity {
     public final int id;
     public final ProductEntity producto;
     public final int cantidad;
-    public final double precioCompra;
-    public final double precioVenta;
-    public final int porcentajeDescuento;
+    @JsonProperty("id_sucursal")
+    public final int idSucursal;
 
-    public InventoryEntity(int id, ProductEntity producto, int cantidad, double precioCompra, double precioVenta,
-                           int porcentajeDescuento) {
+    public InventoryEntity(int id, ProductEntity producto, int cantidad, int idSucursal) {
         this.id = id;
         this.producto = producto;
         this.cantidad = cantidad;
-        this.precioCompra = precioCompra;
-        this.precioVenta = precioVenta;
-        this.porcentajeDescuento = porcentajeDescuento;
+        this.idSucursal = idSucursal;
     }
 
     @Override
@@ -32,32 +29,28 @@ public class InventoryEntity {
         InventoryEntity that = (InventoryEntity) o;
         return id == that.id &&
                 cantidad == that.cantidad &&
-                Double.compare(that.precioCompra, precioCompra) == 0 &&
-                Double.compare(that.precioVenta, precioVenta) == 0 &&
-                porcentajeDescuento == that.porcentajeDescuento &&
+                idSucursal == that.idSucursal &&
                 Objects.equals(producto, that.producto);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, producto, cantidad, precioCompra, precioVenta, porcentajeDescuento);
+        return Objects.hash(id, producto, cantidad, idSucursal);
     }
 
     @Override
     public String toString() {
-        return "InventaryEntity{" +
+        return "InventoryEntity{" +
                 "id=" + id +
                 ", producto=" + producto +
                 ", cantidad=" + cantidad +
-                ", precioCompra=" + precioCompra +
-                ", precioVenta=" + precioVenta +
-                ", porcentajeDescuento=" + porcentajeDescuento +
+                ", idSucursal=" + idSucursal +
                 '}';
     }
 
     public static class NoInventory extends InventoryEntity {
         public NoInventory() {
-            super(-1, null, -1, -1D, -1D, -1);
+            super(-1, null, -1, -1);
         }
     }
 }

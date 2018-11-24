@@ -1,20 +1,25 @@
 package api.data.users;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Objects;
 
 /**
  * Created by Salvador Montiel on 07/oct/2018.
  */
 public class UserEntity {
+    public final int id;
     public final String nombre;
     public final String apellidos;
     public final String email;
     public final String password;
     public final String url_foto;
     public final String telefono;
+    @JsonProperty("is_super_admin")
     public final boolean isSuperAdmin;
 
-    public UserEntity(String nombre, String apellidos, String email, String password, String url_foto, String telefono, boolean isSuperAdmin) {
+    public UserEntity(int id, String nombre, String apellidos, String email, String password, String url_foto, String telefono, boolean isSuperAdmin) {
+        this.id = id;
         this.nombre = nombre;
         this.apellidos = apellidos;
         this.email = email;
@@ -30,6 +35,7 @@ public class UserEntity {
         if (o == null || getClass() != o.getClass()) return false;
         UserEntity that = (UserEntity) o;
         return isSuperAdmin == that.isSuperAdmin &&
+                Objects.equals(id, that.id) &&
                 Objects.equals(nombre, that.nombre) &&
                 Objects.equals(apellidos, that.apellidos) &&
                 Objects.equals(email, that.email) &&
@@ -40,13 +46,14 @@ public class UserEntity {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nombre, apellidos, email, password, url_foto, telefono, isSuperAdmin);
+        return Objects.hash(id, nombre, apellidos, email, password, url_foto, telefono, isSuperAdmin);
     }
 
     @Override
     public String toString() {
         return "UserEntity{" +
-                "nombre='" + nombre + '\'' +
+                "id=" + id +
+                ", nombre='" + nombre + '\'' +
                 ", apellidos='" + apellidos + '\'' +
                 ", email='" + email + '\'' +
                 ", password='" + password + '\'' +

@@ -29,7 +29,6 @@ import static io.micronaut.http.HttpResponse.unprocessableEntity;
 public class ProductsController {
     @Inject CategoriesRepository categoriesRepository;
     @Inject ProductsRepository productsRepo;
-    @Inject SucursalesRepository sucursalesRepo;
     @Inject Authenticator auth;
 
     @Get
@@ -63,7 +62,7 @@ public class ProductsController {
         Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
-        List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria");
+        List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria", "precio_compra", "precio_venta", "porcentaje_descuento");
         String fields = requiredFields.stream().filter(required -> body.get(required) == null)
                 .collect(Collectors.joining(", "));
         if (!fields.equals("")) {
@@ -75,17 +74,15 @@ public class ProductsController {
         String urlFoto = body.get("url_foto").asText();
         String formato = body.get("formato").asText();
         String categoria = body.get("categoria").asText();
+        double precioCompra = body.get("precio_compra").asDouble();
+        double precioVenta = body.get("precio_venta").asDouble();
+        int porcentajeDescuento = body.get("porcentaje_descuento").asInt();
 
         CategoryEntity categoryEntity = categoriesRepository.getCategoryByName(categoria).blockingLast();
         if (categoryEntity instanceof CategoryEntity.NoCategory)
             return ApiError.of(HttpResponse.notFound(), "Categoría '" + categoria + "' no encontrada");
 
-        return productsRepo.createProduct(codigoBarras, nombre, descripcion, urlFoto, formato, categoria)
-                .map(productEntity -> {
-                    sucursalesRepo.createInventoryForAllSucursales(productEntity.id, 0, 0.0, 0.1, 0)
-                            .blockingFirst(false);
-                    return productEntity;
-                })
+        return productsRepo.createProduct(codigoBarras, nombre, descripcion, urlFoto, formato, categoria, precioCompra, precioVenta, porcentajeDescuento)
                 .map(HttpResponse::ok);
     }
 
@@ -100,7 +97,7 @@ public class ProductsController {
         Optional<Flowable<HttpResponse>> authError = auth.authorize(request, false, true);
         if (authError.isPresent()) return authError.get();
 
-        List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria");
+        List<String> requiredFields = Arrays.asList("codigo_barras", "nombre", "descripcion", "url_foto", "formato", "categoria", "precio_compra", "precio_venta", "porcentaje_descuento");
         String fields = requiredFields.stream().filter(required -> body.get(required) == null)
                 .collect(Collectors.joining(", "));
         if (!fields.equals("")) {
@@ -116,10 +113,14 @@ public class ProductsController {
         String urlFoto = body.get("url_foto").asText();
         String formato = body.get("formato").asText();
         String categoria = body.get("categoria").asText();
+        double precioCompra = body.get("precio_compra").asDouble();
+        double precioVenta = body.get("precio_venta").asDouble();
+        int porcentajeDescuento = body.get("porcentaje_descuento").asInt();
+
         CategoryEntity categoryEntity = categoriesRepository.getCategoryByName(categoria).blockingLast();
         if (categoryEntity instanceof CategoryEntity.NoCategory)
             return ApiError.of(HttpResponse.notFound(), "Categoría '" + categoria + "' no encontrada");
-        return productsRepo.updateProduct(oldProduct, codigoBarras, nombre, descripcion, urlFoto, formato, categoria)
+        return productsRepo.updateProduct(oldProduct, codigoBarras, nombre, descripcion, urlFoto, formato, categoria, precioCompra, precioVenta, porcentajeDescuento)
                 .map(HttpResponse::ok);
     }
 

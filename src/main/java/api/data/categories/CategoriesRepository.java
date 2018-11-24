@@ -55,8 +55,8 @@ public class CategoriesRepository {
     }
 
     public Flowable<CategoryEntity> createCategory(String nombre) {
-        String addProductQuery = "INSERT INTO categoria (nombre, descripcion, url_foto) " +
-                "VALUES (?, '', '') RETURNING id";
+        String addProductQuery = "INSERT INTO categoria (nombre) " +
+                "VALUES (?) RETURNING id";
         return db.update(addProductQuery)
                 .parameters(nombre)
                 .returnGeneratedKeys()
