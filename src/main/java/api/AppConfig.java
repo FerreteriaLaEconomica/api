@@ -1,5 +1,7 @@
 package api;
 
+import api.notifiers.FirebaseMessagingNotifier;
+import api.notifiers.LoggerNotifier;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTCreator;
 import com.auth0.jwt.JWTVerifier;
@@ -13,6 +15,9 @@ import org.davidmoten.rx.jdbc.Database;
 import javax.inject.Singleton;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 
 /**
  * Created by Salvador Montiel on 01/oct/2018.
@@ -37,6 +42,19 @@ public class AppConfig {
         config.setUsername(username);
         config.setPassword(password);
         HikariDataSource hikariDataSource = new HikariDataSource(config);
+        try {
+            Class.forName("org.postgresql.Driver");
+            Connection lConn = DriverManager.getConnection(jdbcUrl,username,password);
+            PostgresListener listener = new PostgresListener(lConn);
+            listener.addNotifier(new LoggerNotifier());
+            listener.addNotifier(new FirebaseMessagingNotifier());
+            listener.start();
+        } catch (SQLException e) {
+            System.out.println("Error trying to listen to Postgres events");
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
 
         return Database.fromBlocking(hikariDataSource);
     }

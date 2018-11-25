@@ -33,6 +33,7 @@ dependencyManagement {
 dependencies {
     implementation "com.auth0:java-jwt:3.4.0"
     implementation "com.github.davidmoten:rxjava2-jdbc:0.1-RC39"
+    implementation 'com.google.firebase:firebase-admin:6.5.0'
     implementation "com.zaxxer:HikariCP:3.1.0"
     implementation "org.mindrot:jbcrypt:0.4"
     implementation "org.postgresql:postgresql:42.2.5"
