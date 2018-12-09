@@ -11,18 +11,20 @@ public class UsuarioResponse {
     public final String apellidos;
     public final String url_foto;
     public final String telefono;
+    public final String direccion;
     public final boolean is_super_admin;
 
-    public UsuarioResponse(String email, String nombre, String apellidos, String url_foto, String telefono) {
-        this(email, nombre, apellidos, url_foto, telefono, false);
+    public UsuarioResponse(String email, String nombre, String apellidos, String url_foto, String telefono, String direccion) {
+        this(email, nombre, apellidos, url_foto, telefono, direccion, false);
     }
 
-    public UsuarioResponse(String email, String nombre, String apellidos, String url_foto, String telefono, boolean isSuperAdmin) {
+    public UsuarioResponse(String email, String nombre, String apellidos, String url_foto, String telefono, String direccion, boolean isSuperAdmin) {
         this.email = email;
         this.nombre = nombre;
         this.apellidos = apellidos;
         this.url_foto = url_foto;
         this.telefono = telefono;
+        this.direccion = direccion;
         this.is_super_admin = isSuperAdmin;
     }
 
@@ -36,12 +38,13 @@ public class UsuarioResponse {
                 Objects.equals(nombre, that.nombre) &&
                 Objects.equals(apellidos, that.apellidos) &&
                 Objects.equals(url_foto, that.url_foto) &&
-                Objects.equals(telefono, that.telefono);
+                Objects.equals(telefono, that.telefono) &&
+                Objects.equals(direccion, that.direccion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(email, nombre, apellidos, url_foto, telefono, is_super_admin);
+        return Objects.hash(email, nombre, apellidos, url_foto, telefono, direccion, is_super_admin);
     }
 
     @Override
@@ -52,6 +55,7 @@ public class UsuarioResponse {
                 ", apellidos='" + apellidos + '\'' +
                 ", url_foto='" + url_foto + '\'' +
                 ", telefono='" + telefono + '\'' +
+                ", direccion='" + direccion + '\'' +
                 ", is_super_admin=" + is_super_admin +
                 '}';
     }

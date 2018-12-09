@@ -43,7 +43,7 @@ public class UsersRepository {
                 .flatMap(this::getUserByEmail);
     }
 
-    public Flowable<UserEntity> updateUserData(String email, String nombre, String apellidos, String urlFoto, String telefono) {
+    public Flowable<UserEntity> updateUserData(String email, String nombre, String apellidos, String urlFoto, String telefono, String direccion) {
         Flowable<String> result = null;
         if (nombre != null) {
             result = updateUserData(email, "nombre", nombre);
@@ -59,6 +59,10 @@ public class UsersRepository {
         if (telefono != null) {
             if (result == null) result = updateUserData(email, "telefono", telefono);
             else result = result.flatMap(upstream -> updateUserData(email, "telefono", telefono));
+        }
+        if (direccion != null) {
+            if (result == null) result = updateUserData(email, "direccion", direccion);
+            else result = result.flatMap(upstream -> updateUserData(email, "direccion", direccion));
         }
         if (result == null) return getUserByEmail(email);
         return result.flatMap(this::getUserByEmail);
@@ -83,8 +87,9 @@ public class UsersRepository {
                     String password = rs.getString("password");
                     String urlFoto = rs.getString("url_foto");
                     String telefono = rs.getString("telefono");
+                    String direccion = rs.getString("direccion");
                     boolean isSuperAdmin = rs.getBoolean("is_super_admin");
-                    return new UserEntity(id, nombre, apellidos, email, password, urlFoto, telefono, isSuperAdmin);
+                    return new UserEntity(id, nombre, apellidos, email, password, urlFoto, telefono, direccion, isSuperAdmin);
                 });
     }
 
@@ -98,8 +103,9 @@ public class UsersRepository {
                     String password = rs.getString("password");
                     String urlFoto = rs.getString("url_foto");
                     String telefono = rs.getString("telefono");
+                    String direccion = rs.getString("direccion");
                     boolean isSuperAdmin = rs.getBoolean("is_super_admin");
-                    return new UserEntity(id, nombre, apellidos, email, password, urlFoto, telefono, isSuperAdmin);
+                    return new UserEntity(id, nombre, apellidos, email, password, urlFoto, telefono, direccion, isSuperAdmin);
                 });
     }
 
@@ -108,10 +114,10 @@ public class UsersRepository {
                 .get(rs -> rs.getInt("count") == 1);
     }
 
-    public Flowable<UserEntity> saveUser(String nombre, String apellidos, String email, String password, String url_foto, String telefono) {
-        return db.update("INSERT INTO usuario (nombre, apellidos, email, password, url_foto, telefono) " +
-                "VALUES (?, ?, ?, ?, ?, ?) RETURNING *")
-                .parameters(nombre, apellidos, email, password, url_foto, telefono)
+    public Flowable<UserEntity> saveUser(String nombre, String apellidos, String email, String password, String url_foto, String telefono, String direccion) {
+        return db.update("INSERT INTO usuario (nombre, apellidos, email, password, url_foto, telefono, direccion) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *")
+                .parameters(nombre, apellidos, email, password, url_foto, telefono, direccion)
                 .returnGeneratedKeys()
                 .get(rs -> rs.getInt("id"))
                 .flatMap(this::getUserById);

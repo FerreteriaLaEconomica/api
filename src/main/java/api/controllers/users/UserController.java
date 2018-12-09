@@ -69,7 +69,7 @@ public class UserController {
         Claim emailClaim = jwt.getClaim("email");
         if (!emailClaim.isNull()) {
             UsuarioResponse user = usersRepo.getUserByEmail(emailClaim.asString())
-                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
+                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.direccion, u.isSuperAdmin))
                     .blockingFirst(null);
             if (user == null) {
                 return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
@@ -100,7 +100,7 @@ public class UserController {
         Claim emailClaim = jwt.getClaim("email");
         if (!emailClaim.isNull()) {
             UsuarioResponse user = usersRepo.getUserByEmail(emailClaim.asString())
-                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
+                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.direccion, u.isSuperAdmin))
                     .blockingFirst(null);
             if (user == null) {
                 return ApiError.of(notFound(), "El usuario con el correo: '" + emailClaim.asString() + "' NO existe");
@@ -132,7 +132,7 @@ public class UserController {
             return ApiError.of(notFound(), "El usuario con el correo: '" + email + "' NO existe ó la contraseña es incorrecta.");
         } else {
             return usersRepo.getUserByEmail(email)
-                    .map(u -> new UsuarioResponse(email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
+                    .map(u -> new UsuarioResponse(email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.direccion, u.isSuperAdmin))
                     .map(response -> {
                         return HttpResponse.ok(response)
                                 .header("Authorization", getToken(response.email, response.is_super_admin));
@@ -142,7 +142,7 @@ public class UserController {
 
     @Post
     public Flowable<HttpResponse> registration(@Body ObjectNode body) {
-        List<String> requiredFields = Arrays.asList("nombre", "apellidos", "email", "password");
+        List<String> requiredFields = Arrays.asList("nombre", "apellidos", "email", "password", "direccion");
         String fields = requiredFields.stream().filter(required -> body.get(required) == null)
                 .collect(Collectors.joining(", "));
         if (!fields.equals("")) {
@@ -164,9 +164,10 @@ public class UserController {
             if (body.get("telefono") != null) {
                 telefono = body.get("telefono").asText();
             }
+            String direccion = body.get("direccion").asText();
 
-            return usersRepo.saveUser(nombre, apellidos, email, password, url_foto, telefono)
-                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono))
+            return usersRepo.saveUser(nombre, apellidos, email, password, url_foto, telefono, direccion)
+                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.direccion, u.isSuperAdmin))
                     .map(response -> {
                         return HttpResponse.ok(response)
                                 .header("Authorization", getToken(response.email, response.is_super_admin));
@@ -211,8 +212,12 @@ public class UserController {
             if (body.get("telefono") != null) {
                 telefono = body.get("telefono").asText();
             }
-            return usersRepo.updateUserData(emailClaim.asString(), nombre, apellidos, urlFoto, telefono)
-                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.isSuperAdmin))
+            String direccion = null;
+            if (body.get("direccion") != null) {
+                direccion = body.get("direccion").asText();
+            }
+            return usersRepo.updateUserData(emailClaim.asString(), nombre, apellidos, urlFoto, telefono, direccion)
+                    .map(u -> new UsuarioResponse(u.email, u.nombre, u.apellidos, u.url_foto, u.telefono, u.direccion, u.isSuperAdmin))
                     .map(response -> {
                         return HttpResponse.ok(response)
                                 .header("Authorization", getToken(response.email, response.is_super_admin));
