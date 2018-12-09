@@ -1,9 +1,11 @@
 package api.data.ventas;
 
+import api.data.sucursales.InventoryEntity;
 import api.data.sucursales.InventoryRepository;
 import io.reactivex.Completable;
 import io.reactivex.Single;
 import io.reactivex.functions.BiFunction;
+import io.reactivex.functions.Consumer;
 import org.davidmoten.rx.jdbc.Database;
 
 import javax.inject.Inject;
@@ -41,7 +43,7 @@ public class ItemsRepository {
     private void updateInventory(List<Integer> productos, List<Integer> cantidades) {
         for (int i = 0; i < productos.size(); i++) {
             inventoryRepo.updateInventoryById(productos.get(i), (cantidades.get(i) * -1))
-                    .blockingFirst();
+                    .subscribe(System.out::println, throwable -> throwable.printStackTrace());
         }
     }
 
