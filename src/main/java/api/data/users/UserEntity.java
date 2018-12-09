@@ -15,10 +15,11 @@ public class UserEntity {
     public final String password;
     public final String url_foto;
     public final String telefono;
+    public final String direccion;
     @JsonProperty("is_super_admin")
     public final boolean isSuperAdmin;
 
-    public UserEntity(int id, String nombre, String apellidos, String email, String password, String url_foto, String telefono, boolean isSuperAdmin) {
+    public UserEntity(int id, String nombre, String apellidos, String email, String password, String url_foto, String telefono, String direccion, boolean isSuperAdmin) {
         this.id = id;
         this.nombre = nombre;
         this.apellidos = apellidos;
@@ -26,6 +27,7 @@ public class UserEntity {
         this.password = password;
         this.url_foto = url_foto;
         this.telefono = telefono;
+        this.direccion = direccion;
         this.isSuperAdmin = isSuperAdmin;
     }
 
@@ -34,19 +36,20 @@ public class UserEntity {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         UserEntity that = (UserEntity) o;
-        return isSuperAdmin == that.isSuperAdmin &&
-                Objects.equals(id, that.id) &&
+        return id == that.id &&
+                isSuperAdmin == that.isSuperAdmin &&
                 Objects.equals(nombre, that.nombre) &&
                 Objects.equals(apellidos, that.apellidos) &&
                 Objects.equals(email, that.email) &&
                 Objects.equals(password, that.password) &&
                 Objects.equals(url_foto, that.url_foto) &&
-                Objects.equals(telefono, that.telefono);
+                Objects.equals(telefono, that.telefono) &&
+                Objects.equals(direccion, that.direccion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, nombre, apellidos, email, password, url_foto, telefono, isSuperAdmin);
+        return Objects.hash(id, nombre, apellidos, email, password, url_foto, telefono, direccion, isSuperAdmin);
     }
 
     @Override
@@ -59,6 +62,7 @@ public class UserEntity {
                 ", password='" + password + '\'' +
                 ", url_foto='" + url_foto + '\'' +
                 ", telefono='" + telefono + '\'' +
+                ", direccion='" + direccion + '\'' +
                 ", isSuperAdmin=" + isSuperAdmin +
                 '}';
     }

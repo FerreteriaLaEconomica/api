@@ -34,6 +34,13 @@ public class Authenticator {
         this.usersRepo = usersRepo;
     }
 
+    public DecodedJWT getJwt(HttpRequest request) {
+        Optional<String> authorization = request.getHeaders().getAuthorization();
+        String token = authorization.get().substring(7);
+        DecodedJWT jwt;
+        return jwtVerifier.verify(token);
+    }
+
     public Optional<Flowable<HttpResponse>> authorize(HttpRequest request, boolean hasToBeAdmin, boolean hasToBeSuperAdmin) {
         Optional<String> authorization = request.getHeaders().getAuthorization();
         if (!authorization.isPresent()) {

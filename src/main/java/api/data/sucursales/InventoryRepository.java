@@ -107,4 +107,14 @@ public class InventoryRepository {
                 .get(rs -> rs.getInt("id"))
                 .flatMap(this::getInventoryById);
     }
+
+    public Flowable<InventoryEntity> updateInventoryById(int id, int cantidad) {
+        String insertQuery = "UPDATE inventario SET cantidad = cantidad + ? " +
+                "WHERE id = ? " +
+                "RETURNING id";
+        return db.select(insertQuery)
+                .parameters(cantidad, id)
+                .get(rs -> rs.getInt("id"))
+                .flatMap(this::getInventoryById);
+    }
 }
